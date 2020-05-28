@@ -26,9 +26,8 @@ httpRegex = "@\S+|https?:\S+|http?:\S|[^A-Za-z0-9]+"
 
 searchTerms = ['spacex', 'space x', 'nasa', 'crew dragon', 'falcon 9', 'bob behnken', 'behnken', 'doug hurley', 'hurley',
                'astronaut', 'international space station', 'space station', 'cape canaveral', 'launchamerica']
-targetUsers = ['11348282', '34743251', '16580226', '1451773004', '44196397']#, '1367531', '759251', '2836421'] #Takes user_id. this is Trump's
+targetUsers = ['11348282', '34743251', '16580226', '1451773004', '44196397']
 
-#'25073877' Trump
 
 # we create this class that inherits from the StreamListener in tweepy StreamListener
 class TweetsListener(StreamListener):
