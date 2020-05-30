@@ -10,7 +10,7 @@ This project uses:
 * Plotly
 * Pandas
 
-You can find a quickstart guide to setting up Kafka [here](https://kafka.apache.org/quickstart). You'll need two topics. One called "TwitterStream" and one called "frontEndStream".
+You can find a quickstart guide to setting up Kafka [here](https://kafka.apache.org/quickstart). You'll need two topics. One called "TwitterStream" and one called "FrontEnd".
 
 The neural network was trained using the [sentiment140](https://www.kaggle.com/kazanova/sentiment140) dataset. The final trained neural network is too large to upload to GitHub so I've provided the program used to train it here.
 
@@ -29,3 +29,7 @@ You can also see where certain events occured during the course of the attempted
 ![Timeline of events](https://github.com/cchauser/Twitter-real-time-sentiment-analysis/blob/master/spacexlaunch.png)
 
 It's important to keep in mind that just because some tweets are labelled as negative does not mean they are hateful of the given topic. They may be expressing disappointment or sadness which the neural network considers to be a negative sentiment.
+
+### How to run it
+
+At the moment there is no main program that can be run to launch the entire program. In the future I hope to have a main file that launches each program in its own process, but for now you will need to run TwitterStream.py, MasterConsumer.py, and frontendDash.py in seperate terminals/interpreters.
