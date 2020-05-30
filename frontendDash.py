@@ -79,7 +79,7 @@ def updateUserDF():
         deltaTime = datetime.now() - userT
         minutesPassed = int(deltaTime.total_seconds()) // 60
         
-        if minutesPassed <= 60:
+        if minutesPassed <= 5:
             userPos = userDF['pos'].at[i]
             userNeg = userDF['neg'].at[i]
             userNeu = userDF['neu'].at[i]

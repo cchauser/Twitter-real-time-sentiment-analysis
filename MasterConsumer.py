@@ -62,7 +62,7 @@ def removeStopWords(text):
                 newTweet += word + ' '
     return newTweet.strip()
 
-try:
+def runConsumer():
     textBuffer = []
     previousPollTime = time.time()
     sentimentPacket = {'time': time.time(),'negative': 0, 'positive': 0, 'neutral': 0}
@@ -114,7 +114,7 @@ try:
             allwords = [nltk.word_tokenize(comment) for comment in textBuffer]
             word_freq = nltk.FreqDist(itertools.chain(*allwords))
             #Vocab is list of tuples: [(word, frequency), ...]
-            vocab = word_freq.most_common(50+len(searchTerms)) # searchTerms will always be towards the top of the frequency distribution. This always returns 20 non-search-terms
+            vocab = word_freq.most_common(50+len(searchTerms)) # searchTerms will always be towards the top of the frequency distribution. This always returns top N non-search-terms
             i = 0
             while i < len(vocab):
                 if vocab[i][0] in searchTerms:
@@ -136,13 +136,17 @@ try:
             ### DON'T FORGET TO RESET YOUR BUFFER!
             textBuffer = []
             previousPollTime = currTime
-            
-except KeyboardInterrupt:
-    print("\n\nKeyboard interrupt")
-    pass
-except Exception as e:
-    print("\n\nException handler:")
-    print(e)
-finally:
-    consumer.close()
-    print('Consumer closed succesfully')
+    
+while True:
+    try:
+        runConsumer()        
+    except KeyboardInterrupt:
+        print("\n\nKeyboard interrupt")
+        break
+    except Exception as e:
+        print("\n\nException handler:")
+        print(e)
+        print('restarting')
+
+consumer.close()
+print('Consumer closed successfully')
