@@ -9,6 +9,7 @@ This project uses:
 * Dash
 * Plotly
 * Pandas
+* NLTK
 
 You can find a quickstart guide to setting up Kafka [here](https://kafka.apache.org/quickstart). You'll need two topics. One called "TwitterStream" and one called "FrontEnd".
 
