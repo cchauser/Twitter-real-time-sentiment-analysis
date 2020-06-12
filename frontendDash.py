@@ -84,7 +84,6 @@ def updateUserDF():
             userNeg = userDF['neg'].at[i]
             userNeu = userDF['neu'].at[i]
             
-            #TODO: Change to percentage of original (new - original) / original
             attitudeChange = round(((lastPositiveScore - userPos) - (lastNegativeScore - userNeg)) / (userPos - userNeg) * 100, 2)
             activityChange = round(((lastPositiveScore + lastNegativeScore + lastNeutralScore) - (userPos + userNeg + userNeu)) / (userPos + userNeg + userNeu) * 100, 2)
             
@@ -92,12 +91,13 @@ def updateUserDF():
             userDF['dActivity'].at[i] = activityChange
     
 
-# d is date offset. ex: d = -1 saves data as though it was yesterday's
+# d is date offset. ex: d = -1 saves data using yesterday's date
 def saveCSV(d = 0):
     global sentimentDF, keywordDF, userDF
     
     date = datetime.now()
     
+    #TODO: Format correctly. ATM if month is 1 character long it doesn't prepend a 0. Format should be 0611. Currently 611
     prefix = '{0}{1}'.format(date.month, date.day+d)
     
     try:
@@ -116,7 +116,19 @@ def resetDF():
     keywordDF = pd.DataFrame({'Word': ['placeholder'], 'Freq': [0]})
     userDF = pd.DataFrame(columns = ['Time', 'imageURL', 'User', 'Text', 'neg', 'pos', 'neu', 'dAttitude', 'dActivity'])
 
+
+def tableColors():
+    global userDF
     
+    oddColor = 'white'
+    evenColor = 'lightcyan'
+    
+    tableColor = [oddColor, evenColor] * round(len(userDF)/2)
+    #Cut off at the length of userDF
+    #Because the table displays the results with the most recent at the top we reverse the order for
+    #the colors so that all of the entries retain the same colors and the newest gets the next color
+    tableColor = tableColor[:len(userDF)][::-1]
+    return [tableColor * 5]
 
 
 @app.callback(Output('save_success', 'children'),
@@ -192,7 +204,7 @@ def update_graph_live(n):
         print(e)
         pass
     finally:
-        #After appending, do this to reset the indices or they'll all be zero
+        #After appending the dataframes, do this to reset the indices or they'll all be zero
         sentimentDF.reset_index(inplace = True, drop = True)
         keywordDF.reset_index(inplace = True, drop = True)
         userDF.reset_index(inplace = True, drop = True)
@@ -203,6 +215,8 @@ def update_graph_live(n):
         
         if len(userDF) > 0 and len(sentimentDF) > 0:
             updateUserDF()
+            
+        tableColor = tableColors()
 
     # Create the graph 
     children = [
@@ -217,7 +231,7 @@ def update_graph_live(n):
                                     go.Scatter(
                                         x=time_series,
                                         y=sentimentDF['Number of Tweets'][sentimentDF['Sentiment']==1].reset_index(drop=True),
-                                        name="Neutrals",
+                                        name="Neutral",
                                         opacity=1,
                                         mode='lines',
                                         line=dict(width=1, color='rgb(50, 50, 255)')
@@ -225,7 +239,7 @@ def update_graph_live(n):
                                     go.Scatter(
                                         x=time_series,
                                         y=sentimentDF['Number of Tweets'][sentimentDF['Sentiment']==0].reset_index(drop=True),
-                                        name="Negatives",
+                                        name="Negative",
                                         opacity=1,
                                         mode='lines',
                                         line=dict(width=1, color='rgb(255, 50, 50)')
@@ -233,7 +247,7 @@ def update_graph_live(n):
                                     go.Scatter(
                                         x=time_series,
                                         y=sentimentDF['Number of Tweets'][sentimentDF['Sentiment']==2].reset_index(drop=True),
-                                        name="Positives",
+                                        name="Positive",
                                         opacity=1,
                                         mode='lines',
                                         line=dict(width=1, color='rgb(50, 255, 50)')
@@ -254,7 +268,8 @@ def update_graph_live(n):
                                     go.Bar(
                                         x = wordFreq['Freq'][::-1],
                                         y = wordFreq['Word'][::-1],
-                                        orientation = 'h'
+                                        orientation = 'h',
+                                        marker_color = 'lightskyblue'
                                     )
                                 ],
                                 'layout':{
@@ -275,8 +290,10 @@ def update_graph_live(n):
                                 'data':[
                                     go.Table(
                                         columnwidth = [40, 60, 220, 40, 40],
-                                        header = dict(values = ['Time', 'User', 'Text', '% Sentiment change', '% Activity change']),
-                                        cells = dict(values = [userDF['Time'][::-1], userDF['User'][::-1], userDF['Text'][::-1], userDF['dAttitude'][::-1], userDF['dActivity'][::-1]]),                                        
+                                        header = dict(values = ['Time', 'User', 'Text', '% Sentiment change', '% Activity change'],
+                                                      fill_color = 'lightskyblue'),
+                                        cells = dict(values = [userDF['Time'][::-1], userDF['User'][::-1], userDF['Text'][::-1], userDF['dAttitude'][::-1], userDF['dActivity'][::-1]],
+                                                     fill_color = tableColor),                                        
                                     )
                                 ],
                                 #TODO: Pretty layout
