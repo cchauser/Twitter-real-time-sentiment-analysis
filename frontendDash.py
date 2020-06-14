@@ -21,7 +21,7 @@ from datetime import datetime
 
 
 try:
-    prefix = datetime.fromtimestamp(time.time()).strftime('%m%d')
+    prefix = '0527'#datetime.fromtimestamp(time.time()).strftime('%m%d')
     sentimentDF = pd.read_csv('{0}/{0}-sentimentDF.csv'.format(prefix))
     keywordDF = pd.read_csv('{0}/{0}-keywordDF.csv'.format(prefix))
     userDF = pd.read_csv('{0}/{0}-userDF.csv'.format(prefix))
@@ -209,7 +209,6 @@ def update_graph_live(n):
         keywordDF.reset_index(inplace = True, drop = True)
         userDF.reset_index(inplace = True, drop = True)
         
-        #TODO: Sliding time series window of 6 hours
         time_series = sentimentDF['Time'][sentimentDF['Sentiment']==0].reset_index(drop=True)
         wordFreq = keywordDF.nlargest(15, 'Freq')
         
@@ -254,6 +253,19 @@ def update_graph_live(n):
                                     )
                                 ],
                                 'layout':{
+                                        'xaxis': {'rangeselector': {'buttons': [{'count': 1,
+                                                                                 'label': '1h',
+                                                                                 'step': 'hour',
+                                                                                 'stepmode': 'backward'},
+                                                                                {'count': 8,
+                                                                                 'label': '8h',
+                                                                                 'step': 'hour',
+                                                                                 'stepmode': 'backward'},
+                                                                                {'count': 12,
+                                                                                 'label': '12h',
+                                                                                 'step': 'hour',
+                                                                                 'stepmode': 'backward'},
+                                                                                {'step': 'all'}]}},
                                         'yaxis': {'title': {'text': 'Number of Mentions'}},
                                         'margin':{'b': 40, 't': 30}
                                         }
