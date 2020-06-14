@@ -31,6 +31,34 @@ You can also see where certain events occured during the course of the attempted
 
 It's important to keep in mind that just because some tweets are labelled as negative does not mean they are hateful of the given topic. They may be expressing disappointment or sadness which the neural network considers to be a negative sentiment.
 
+### Reading the graphs
+
+All of the graphs on the dashboard update every minute but the consumer only processes and pushes data every two minutes. It's highly recommended to leave the consumer processing time at two minutes to reduce dips and spikes in the stream.
+
+#### Line graph
+
+The line graph graphs the sentiment output from the neural network. The y-axis is the number of tweets/replies, the x-axis is a time series.
+
+If you notice a large spike in any of the lines outside of normal trends it's probably because someone sent out a spicy tweet! Check the table!
+
+#### Bar graph
+
+The bar graph shows frequency of keywords that people are using in association with the keywords you're looking for.
+
+#### Table
+
+The only tweets that show up here are the tweets sent by the users being followed. You can change who is followed by editing the target_users variable in TwitterStream.py. *I'll add a better way to change it in the future*
+
+Date: yyyy-mm-dd HH:MM:SS
+
+User: This is the twitter user who sent the tweet.
+
+Text: What the user tweeted.
+
+Sentiment Change: For each tweet the sentiment scores for two minute window prior to the tweet are saved. Every two minutes those sentiment scores are compared to the new sentiment scores and the percentage of change is reflected here. These numbers are updated for the next five minutes. After five minutes the percentage of change is no longer updated.
+
+Activity Change: Same as sentiment change but this measures change in total number of keyword mentions, tweets, and replies.
+
 ### How to run it
 
 At the moment there is no main program that can be run to launch the entire program. In the future I hope to have a main file that launches each program in its own process, but for now you will need to run TwitterStream.py, MasterConsumer.py, and frontendDash.py in seperate terminals/interpreters.
