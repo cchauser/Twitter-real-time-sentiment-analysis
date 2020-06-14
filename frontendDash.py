@@ -160,11 +160,11 @@ def update_graph_live(n):
     currTime = datetime.now()
     #Only occurs at midnight
     #Can possibly skip over this if there is a large spike in data to be processed by the consumer
-    #near midnight thus stalling the consumer and taking up precious processor cycles for a crucial
-    #few seconds which pushes the time the front end processes new data beyond 00:00
+    #near midnight thus stalling the consumer and taking up processor cycles for a crucial
+    #few seconds which pushes the time the front end processes new data beyond 00:00 
     #This bug shouldn't ever occur. But I know it will eventually. You've been warned
     if currTime.hour + currTime.minute == 0:
-        saveCSV(d = -1) #Save before resetting :)
+        saveCSV(d = -1) #Save before resetting
         resetDF() #Reset the data at midnight local time
     
     new_data = consumer.poll()
@@ -305,7 +305,9 @@ def update_graph_live(n):
                                         header = dict(values = ['Time', 'User', 'Text', '% Sentiment change', '% Activity change'],
                                                       fill_color = 'lightskyblue'),
                                         cells = dict(values = [userDF['Time'][::-1], userDF['User'][::-1], userDF['Text'][::-1], userDF['dAttitude'][::-1], userDF['dActivity'][::-1]],
-                                                     fill_color = tableColor),                                        
+                                                     fill_color = tableColor,
+                                                     suffix = ['', '', '', '%', '%'],
+                                                     font = dict(size = [12, 12, 12, 16, 16])),                                        
                                     )
                                 ],
                                 #TODO: Pretty layout
