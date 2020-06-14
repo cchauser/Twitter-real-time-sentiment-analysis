@@ -304,11 +304,11 @@ def update_graph_live(n):
                                         columnwidth = [40, 60, 220, 55, 55],
                                         header = dict(values = ['Time', 'User', 'Text', 'Sentiment change', 'Activity change'],
                                                       fill_color = 'lightskyblue',
-                                                      font_size = 18),
+                                                      font_size = 17),
                                         cells = dict(values = [userDF['Time'][::-1], userDF['User'][::-1], userDF['Text'][::-1], userDF['dAttitude'][::-1], userDF['dActivity'][::-1]],
                                                      fill_color = tableColor,
                                                      suffix = ['', '', '', '%', '%'],
-                                                     font_size = [12, 12, 12, 16, 16] * len(userDF),
+                                                     font_size = [12, 12, 12, 14, 14],
                                                      align = ['center', 'center', 'left', 'center', 'center'])
                                     )
                                 ],
