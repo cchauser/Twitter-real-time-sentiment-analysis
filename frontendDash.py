@@ -21,7 +21,7 @@ from datetime import datetime
 
 
 try:
-    prefix = '0527'#datetime.fromtimestamp(time.time()).strftime('%m%d')
+    prefix = datetime.fromtimestamp(time.time()).strftime('%m%d')
     sentimentDF = pd.read_csv('{0}/{0}-sentimentDF.csv'.format(prefix))
     keywordDF = pd.read_csv('{0}/{0}-keywordDF.csv'.format(prefix))
     userDF = pd.read_csv('{0}/{0}-userDF.csv'.format(prefix))
