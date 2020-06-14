@@ -23,7 +23,7 @@ When the data reaches the front end (consisting of Dash and plotly) it is organi
 
 Below you can see an example of the end result when the program was used to analyze twitter for SpaceX's attempted launch on May 27th, 2020.
 
-![Graphing dashboard for SpaceX launch](https://github.com/cchauser/Twitter-real-time-sentiment-analysis/blob/master/spacexlaunchFullNewColors.png)
+![Graphing dashboard for SpaceX launch](https://github.com/cchauser/Twitter-real-time-sentiment-analysis/blob/master/spacexlaunch-V0614.png)
 
 You can also see where certain events occured during the course of the attempted launch:
 
