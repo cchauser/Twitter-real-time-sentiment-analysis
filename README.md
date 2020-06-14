@@ -11,7 +11,7 @@ This project uses:
 * Pandas
 * NLTK
 
-You can find a quickstart guide to setting up Kafka [here](https://kafka.apache.org/quickstart). You'll need two topics. One called "TwitterStream" and one called "FrontEnd".
+You can find a quickstart guide to setting up Kafka [here](https://kafka.apache.org/quickstart). You'll need two topics. One called "TwitterStream" and one called "FrontEnd". You will also need a set of Twitter API keys that can be obtained [here](https://developer.twitter.com/en/docs/basics/getting-started). Save your keys in a txt file named 'twitterkeys.txt' with each key/token on a seperate line.
 
 The neural network was trained using the [sentiment140](https://www.kaggle.com/kazanova/sentiment140) dataset. The final trained neural network is too large to upload to GitHub so I've provided the program used to train it here.
 
