@@ -214,8 +214,11 @@ def update_graph_live(n):
         
         if len(userDF) > 0 and len(sentimentDF) > 0:
             updateUserDF()
-            
-        tableColor = tableColors()
+        
+        if len(userDF) > 1:
+            tableColor = tableColors()
+        else:
+            tableColor = ['lightcyan']
 
     # Create the graph 
     children = [
