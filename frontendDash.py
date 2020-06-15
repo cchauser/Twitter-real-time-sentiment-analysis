@@ -17,7 +17,7 @@ import plotly.graph_objs as go
 
 from kafka import KafkaConsumer
 from dash.dependencies import Input, Output
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 try:
@@ -96,9 +96,9 @@ def saveCSV(d = 0):
     global sentimentDF, keywordDF, userDF
     
     date = datetime.now()
+    date -= timedelta(days = d)
     
-    #TODO: Format correctly. ATM if month is 1 character long it doesn't prepend a 0. Format should be 0611. Currently 611
-    prefix = '{0}{1}'.format(date.month, date.day+d)
+    prefix = date.strftime('%m%d')
     
     try:
         os.mkdir(prefix)
