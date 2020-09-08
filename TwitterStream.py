@@ -10,6 +10,7 @@ from tweepy import Stream
 from tweepy.streaming import StreamListener
 from kafka import KafkaProducer
 from time import time
+import multiprocessing
 import json
 import os
 import re
@@ -24,16 +25,19 @@ access_secret= keys[3].replace('\n', '')
 
 httpRegex = "@\S+|https?:\S+|http?:\S|[^A-Za-z0-9]+"
 
-searchTerms = ['spacex', 'space x', 'nasa', 'crew dragon', 'falcon 9', 'bob behnken', 'behnken', 'doug hurley', 'hurley',
-               'astronaut', 'international space station', 'space station', 'cape canaveral', 'launchamerica']
-targetUsers = ['11348282', '34743251', '16580226', '1451773004', '44196397']
+
+#TODO: Add a news mode which filters out news headlines with our search terms if we're following news posters like CNN, MSNBC etc
 
 
 # we create this class that inherits from the StreamListener in tweepy StreamListener
 class TweetsListener(StreamListener):
-
-    def __init__(self, csocket):
-        self.client_socket = csocket
+    
+    def __init__(self, header, userArg):
+        self.userArg = userArg
+        self.producer = KafkaProducer(bootstrap_servers=os.environ.get('KAFKA_HOST', 'localhost:9092'),
+                             value_serializer = lambda x: json.dumps(x).encode('utf-8'),
+                             batch_size = 0)
+        self.header = header
         
         
     # we override the on_data() function in StreamListener
@@ -52,10 +56,10 @@ class TweetsListener(StreamListener):
                     tweet = message['text']
                     
                     
-                if message['user']['id_str'] in targetUsers:
+                if message['user']['id_str'] in self.userArg:
                     print(tweet, message['user']['screen_name'])
                     packet = {'time': time(), 'image_url': message['user']['profile_image_url'], 'user': message['user']['screen_name'], 'tweet': tweet}
-                    self.client_socket.send('TwitterStream', value=packet, headers = [('twitterFollow', b'1')])
+                    self.producer.send('TwitterStream', value=packet, headers = [(self.header, b'1')])
                 else:
                     tweet = tweet.lower()
                     tweet = tweet.replace('\n\n', ' ')
@@ -72,11 +76,11 @@ class TweetsListener(StreamListener):
                     
                     print(tweet)
                     packet = {'tweet': tweet, 'terms': searchTerms}
-                    self.client_socket.send('TwitterStream', value=packet, headers = [('twitterTrack', b'1')])
+                    self.producer.send('TwitterStream', value=packet, headers = [(self.header, b'1')])
             return True
         except Exception as e:
             pass
-#            print("Error on_data: %s" % str(e))
+            print("Error on_data: %s" % str(e))
         return True
 
     def if_error(self, status):
@@ -88,14 +92,14 @@ class TweetsListener(StreamListener):
         return True
 
 
-def send_tweets(producer):
+def startStream(keywords, users):
     auth = OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_secret)
     
-    twitter_stream = Stream(auth, TweetsListener(producer))
+    twitter_stream = Stream(auth, TweetsListener(keywords[0], users))
     while True:
         try:
-            twitter_stream.filter(languages = ['en'], track=searchTerms, follow = targetUsers) # start the stream
+            twitter_stream.filter(languages = ['en'], track=keywords, follow = users) # start the stream
         except KeyboardInterrupt:
             print('Keyboard Interrupt')
             return True
@@ -107,13 +111,23 @@ def send_tweets(producer):
 
 
 if __name__ == "__main__":
+#    p = multiprocessing.Process(target = startStream, args=(['pacers', 'indianapolis', 'oladipo', 'sabonis'], []))
+#    p.start()
     
-    print("Initializing Kafka Producer")
-    producer = KafkaProducer(bootstrap_servers=os.environ.get('KAFKA_HOST', 'localhost:9092'),
-                             value_serializer = lambda x: json.dumps(x).encode('utf-8'),
-                             batch_size = 0)
-    if producer.bootstrap_connected():
-        print('Connected')
-        send_tweets(producer)
-    else:
-        print('Failed to connect to service')
+    startStream(['nasa', 'spacex', 'dragon'], [])
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
