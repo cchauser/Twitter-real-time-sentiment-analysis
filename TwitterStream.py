@@ -32,12 +32,13 @@ httpRegex = "@\S+|https?:\S+|http?:\S|[^A-Za-z0-9]+"
 # we create this class that inherits from the StreamListener in tweepy StreamListener
 class TweetsListener(StreamListener):
     
-    def __init__(self, header, userArg):
+    def __init__(self, keywordArg, userArg):
         self.userArg = userArg
+        self.keywordArg = keywordArg
         self.producer = KafkaProducer(bootstrap_servers=os.environ.get('KAFKA_HOST', 'localhost:9092'),
                              value_serializer = lambda x: json.dumps(x).encode('utf-8'),
                              batch_size = 0)
-        self.header = header
+        self.header = keywordArg[0]
         
         
     # we override the on_data() function in StreamListener
@@ -75,7 +76,7 @@ class TweetsListener(StreamListener):
                     
                     
                     print(tweet)
-                    packet = {'tweet': tweet, 'terms': searchTerms}
+                    packet = {'tweet': tweet, 'terms': self.keywordArg}
                     self.producer.send('TwitterStream', value=packet, headers = [(self.header, b'1')])
             return True
         except Exception as e:
@@ -96,7 +97,7 @@ def startStream(keywords, users):
     auth = OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_secret)
     
-    twitter_stream = Stream(auth, TweetsListener(keywords[0], users))
+    twitter_stream = Stream(auth, TweetsListener(keywords, users))
     while True:
         try:
             twitter_stream.filter(languages = ['en'], track=keywords, follow = users) # start the stream
