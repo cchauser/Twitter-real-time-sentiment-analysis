@@ -59,8 +59,8 @@ class TweetsListener(StreamListener):
                     
                 if message['user']['id_str'] in self.userArg:
                     print(tweet, message['user']['screen_name'])
-                    packet = {'time': time(), 'image_url': message['user']['profile_image_url'], 'user': message['user']['screen_name'], 'tweet': tweet}
-                    self.producer.send('TwitterStream', value=packet, headers = [(self.header, b'1')])
+                    packet = {'time': int(time()), 'user': message['user']['screen_name'], 'tweet': tweet}
+                    self.producer.send('TwitterStream', value=packet, headers = [('userTrack', b'1'), (self.header, b'1')])
                 else:
                     tweet = tweet.lower()
                     tweet = tweet.replace('\n\n', ' ')
@@ -75,13 +75,13 @@ class TweetsListener(StreamListener):
                         return True
                     
                     
-                    print(tweet)
+#                    print(tweet)
                     packet = {'tweet': tweet, 'terms': self.keywordArg}
                     self.producer.send('TwitterStream', value=packet, headers = [(self.header, b'1')])
             return True
         except Exception as e:
             pass
-            print("Error on_data: %s" % str(e))
+#            print("Error on_data: %s" % str(e))
         return True
 
     def if_error(self, status):
@@ -112,20 +112,13 @@ def startStream(keywords, users):
 
 
 if __name__ == "__main__":
-#    p = multiprocessing.Process(target = startStream, args=(['pacers', 'indianapolis', 'oladipo', 'sabonis'], []))
+#    p = multiprocessing.Process(target = startStream, args=(['biden', 'kamala'], ['20346956']))
 #    p.start()
     
-    startStream(['nasa', 'spacex', 'dragon'], [])
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+    startStream(['trump', 'pence'], ['25073877'])#, '759251', '1367531', '2836421', '2899773086'])
+#    p.join()
+    
+    #TODO: Add a listener that will spawn a new stream on a new process.
         
         
         
