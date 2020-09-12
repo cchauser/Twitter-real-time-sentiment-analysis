@@ -94,6 +94,7 @@ class TweetsListener(StreamListener):
 
 
 def startStream(keywords, users):
+    print('Starting stream using', keywords)
     auth = OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_secret)
     
@@ -112,13 +113,21 @@ def startStream(keywords, users):
 
 
 if __name__ == "__main__":
-#    p = multiprocessing.Process(target = startStream, args=(['biden', 'kamala'], ['20346956']))
-#    p.start()
+    p = multiprocessing.Process(target = startStream, args=(['biden', 'kamala'], ['20346956']))
+    p.start()
     
-    startStream(['trump', 'pence'], ['25073877'])#, '759251', '1367531', '2836421', '2899773086'])
-#    p.join()
+    c = multiprocessing.Process(target = startStream, args=(['trump', 'pence'], ['25073877']))
+    c.start()
     
-    #TODO: Add a listener that will spawn a new stream on a new process.
+    v = multiprocessing.Process(target = startStream, args=(['nba', 'playoffs'], ['19923144']))
+    v.start()
+    
+    startStream(['nfl', 'mahomes'], ['19426551'])#, '759251', '1367531', '2836421', '2899773086'])
+    p.join()
+    c.join()
+    v.join()
+    
+#    TODO: Add a listener that will spawn a new stream on a new process.
         
         
         

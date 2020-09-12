@@ -7,93 +7,42 @@ Created on Mon May 11 13:31:14 2020
 """
 
 import dash
-import json
 import time
 import os
 import dash_core_components as dcc
 import dash_html_components as html
 import pandas as pd
+import numpy as np
 import plotly.graph_objs as go
+import MySQLdb as mysql
 
-from kafka import KafkaConsumer
 from dash.dependencies import Input, Output
 from datetime import datetime, timedelta
 
+DATABASE = 'test'
 
-try:
-    prefix = datetime.fromtimestamp(time.time()).strftime('%m%d')
-    sentimentDF = pd.read_csv('{0}/{0}-sentimentDF.csv'.format(prefix))
-    keywordDF = pd.read_csv('{0}/{0}-keywordDF.csv'.format(prefix))
-    userDF = pd.read_csv('{0}/{0}-userDF.csv'.format(prefix))
-except Exception as e:
-    print(e)
-    sentimentDF = pd.DataFrame(columns = ['Time', 'Number of Tweets', 'Sentiment'])
-    
-    keywordDF = pd.DataFrame({'Word': ['placeholder'], 'Freq': [0]})
-    
-    userDF = pd.DataFrame(columns = ['Time', 'imageURL', 'User', 'Text', 'neg', 'pos', 'neu', 'dAttitude', 'dActivity'])
 
-consumer = KafkaConsumer(
-    'FrontEnd',
-     bootstrap_servers=['localhost:9092'],
-     auto_offset_reset='earliest',
-     enable_auto_commit=True,
-     group_id='my-group',
-     value_deserializer=lambda x: json.loads(x.decode('utf-8')),
-     consumer_timeout_ms = 60000)
+with open('mysqlKeys.txt') as f:
+    keys = f.readlines()
 
+mysqlUser = keys[0].replace('\n', '')
+mysqlPass = keys[1].replace('\n', '')
+
+
+print('Connected to mySQL server')
 
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions=True)
 
 app.title = 'Real-Time Analytics'
 
 server = app.server
 
-app.layout = html.Div(children = [
-        html.Div(html.H1('Analytics'), style={'width': '25%', 'display': 'inline-block', 'padding': '0 0 0 20'}),
-        html.Div([html.Button('Save Data', id='save-button', n_clicks=0),
-                  html.Div(id='save_success', children = 'Click this button to save the data')], style={'width': '50%', 'display': 'inline-block', 'padding': '0 0 0 20'}),
-        html.Div(id = 'live-graph'),
-        
-        
-        dcc.Interval(id = 'interval-component',
-                     interval = 1*60000, 
-                     n_intervals = 0
-                     )
-        ],
-        style = {'padding': '20px'})
-        
-#God forgive me for what i'm about to do
-def updateUserDF():
-    global sentimentDF, userDF
-
-    lastPositiveScore = sentimentDF['Number of Tweets'].at[len(sentimentDF)-2]
-    lastNegativeScore = sentimentDF['Number of Tweets'].at[len(sentimentDF)-3]
-    lastNeutralScore = sentimentDF['Number of Tweets'].at[len(sentimentDF)-1]
-    
-    for i in range(len(userDF)):
-        userT = datetime.strptime(userDF['Time'].at[i], '%Y-%m-%d %H:%M:%S')
-        deltaTime = datetime.now() - userT
-        minutesPassed = int(deltaTime.total_seconds()) // 60
-        
-        if minutesPassed <= 5:
-            userPos = userDF['pos'].at[i]
-            userNeg = userDF['neg'].at[i]
-            userNeu = userDF['neu'].at[i]
-            
-            attitudeChange = round(((lastPositiveScore - userPos) - (lastNegativeScore - userNeg)) / (userPos - userNeg) * 100, 2)
-            activityChange = round(((lastPositiveScore + lastNegativeScore + lastNeutralScore) - (userPos + userNeg + userNeu)) / (userPos + userNeg + userNeu) * 100, 2)
-            
-            userDF['dAttitude'].at[i] = attitudeChange
-            userDF['dActivity'].at[i] = activityChange
-    
 
 # d is date offset. ex: d = -1 saves data using yesterday's date
 def saveCSV(d = 0):
-    global sentimentDF, keywordDF, userDF
     
     date = datetime.now()
     date -= timedelta(days = d)
@@ -109,32 +58,22 @@ def saveCSV(d = 0):
     keywordDF.to_csv('{0}/{0}-keywordDF.csv'.format(prefix), index=False)
     userDF.to_csv('{0}/{0}-userDF.csv'.format(prefix), index=False)
     
-def resetDF():
-    global sentimentDF, keywordDF, userDF
-    
-    sentimentDF = pd.DataFrame(columns = ['Time', 'Number of Tweets', 'Sentiment'])
-    keywordDF = pd.DataFrame({'Word': ['placeholder'], 'Freq': [0]})
-    userDF = pd.DataFrame(columns = ['Time', 'imageURL', 'User', 'Text', 'neg', 'pos', 'neu', 'dAttitude', 'dActivity'])
 
-
-def tableColors():
-    global userDF
+def tableColors(n):
     
-    oddColor = 'white'
-    evenColor = 'lightcyan'
+    oddColor = 'lightcyan'
+    evenColor = 'white'
     
-    tableColor = [oddColor, evenColor] * round(len(userDF)/2)
+    tableColor = [oddColor, evenColor] * round(n/2)
     #Cut off at the length of userDF
     #Because the table displays the results with the most recent at the top we reverse the order for
     #the colors so that all of the entries retain the same colors and the newest gets the next color
-    tableColor = tableColor[:len(userDF)][::-1]
+    tableColor = tableColor[:n][::-1]
     return [tableColor * 5]
-
 
 @app.callback(Output('save_success', 'children'),
               [Input('save-button', 'n_clicks')])
 def button_save_csv(n_clicks):
-    global sentimentDF, keywordDF, userDF
     if n_clicks > 0:
     
         prefix = datetime.fromtimestamp(time.time()).strftime('%m%d')
@@ -150,105 +89,162 @@ def button_save_csv(n_clicks):
     else:
         return 'Click this button to save the data'
     
-
-
-@app.callback(Output('live-graph', 'children'),
-              [Input('interval-component', 'n_intervals')])
-def update_graph_live(n):
-    global sentimentDF, keywordDF, userDF
+def getRecentTopics():
+    cnx = mysql.connect(user = mysqlUser, 
+                         password = mysqlPass, 
+                         host = '127.0.0.1',
+                         database = DATABASE)
+    cursor = cnx.cursor()
+    lastUpdateQuery = '''SELECT TABLE_NAME, UPDATE_TIME FROM information_schema.tables 
+                            WHERE UPDATE_TIME <> 'None' && TABLE_SCHEMA = '{}' 
+                            ORDER BY UPDATE_TIME DESC'''.format(DATABASE)
     
-    currTime = datetime.now()
-    #Only occurs at midnight
-    #Can possibly skip over this if there is a large spike in data to be processed by the consumer
-    #near midnight thus stalling the consumer and taking up processor cycles for a crucial
-    #few seconds which pushes the time the front end processes new data beyond 00:00 
-    #This bug shouldn't ever occur. But I know it will eventually. You've been warned
-    if currTime.hour + currTime.minute == 0:
-        saveCSV(d = -1) #Save before resetting
-        resetDF() #Reset the data at midnight local time
+    cursor.execute(lastUpdateQuery)
+    topics = []
+    for entry in cursor:
+        if 'sentiment' not in entry[0]:
+            continue
+        if (datetime.now() - entry[1]).seconds / 3600 < 12:
+            topics.append(entry[0].split('_')[0])
+    cnx.close()
+    return topics
+
+def sqlSentimentSelect(topic):
+    cnx = mysql.connect(user = mysqlUser, 
+                         password = mysqlPass, 
+                         host = '127.0.0.1',
+                         database = DATABASE)
+    cursor = cnx.cursor()
+    dayAgoSeconds = int(time.time()) - 86400
+    selectQuery = '''SELECT time, negative, positive, neutral FROM {0}_sentiment
+                        WHERE time > {1}'''.format(topic, dayAgoSeconds)
+                        
+    cursor.execute(selectQuery)
+    timeSeries = []
+    sentiments = []
+    for item in cursor:
+        t = datetime.fromtimestamp(item[0]).strftime('%Y-%m-%d %H:%M:%S')
+        timeSeries.append(t)
+        sentiments.append(list(item[1:]))
+    cnx.close()
+    return timeSeries, np.asarray(sentiments)
+
+def sqlKeywordSelect(topic):
+    cnx = mysql.connect(user = mysqlUser, 
+                         password = mysqlPass, 
+                         host = '127.0.0.1',
+                         database = DATABASE)
+    cursor = cnx.cursor()
+    rollingKeywordWindowSeconds = (60*30) # 30 minute window
+    minTimeSelection = int(time.time()) - rollingKeywordWindowSeconds
     
-    new_data = consumer.poll()
+    selectQuery = '''
+                    SELECT word, SUM(times_seen) as n
+                    FROM {0}_keyword
+                    WHERE time > {1}
+                    GROUP BY word
+                    ORDER BY n  
+                  '''.format(topic, minTimeSelection)
+    
+    cursor.execute(selectQuery)
+    wordArray = []
+    countArray = []
+    for item in cursor:
+        wordArray.append(item[0])
+        countArray.append(int(item[1]))
+    cnx.close()
+    return wordArray[:15], countArray[:15]
+    
+def sqlUserSelect(topic):
+    cnx = mysql.connect(user = mysqlUser, 
+                         password = mysqlPass, 
+                         host = '127.0.0.1',
+                         database = DATABASE)
+    cursor = cnx.cursor()
+    
+    dayAgoSeconds = int(time.time()) - 86400
+    selectQuery = '''
+                  SELECT time, user, tweet, deltasentiment, deltaactivity
+                  FROM {0}_user
+                  WHERE time > {1}
+                  ORDER BY time DESC
+                  '''.format(topic, dayAgoSeconds)
+    
+    cursor.execute(selectQuery)
+    #TODO: Better way to do this
+    timeArray = []
+    userArray = []
+    tweetArray = []
+    dSentArray = []
+    dActArray = []
+    for item in cursor:
+        t = datetime.fromtimestamp(item[0]).strftime('%Y-%m-%d %H:%M:%S')
+        timeArray.append(t)
+        userArray.append(item[1])
+        tweetArray.append(item[2])
+        dSentArray.append(item[3])
+        dActArray.append(item[4])
+    
+    cnx.close()
+    return timeArray, userArray, tweetArray, dSentArray, dActArray
+
+@app.callback([Output('live-graph', 'children'),
+               Output('since-update', 'children')],
+              [Input('interval-component', 'n_intervals'),
+               Input('dropdown_selector', 'value')])
+def update_graph_live(n, ddValue):
     try:
-        new_data = list(new_data.values())[0] #Gives a list of new packets
-        
-        for _packet in new_data:
-            if _packet.headers[0] == ('twitterSentiment', b'1'):
-                packet = _packet.value
-                t = packet['time']
-                numNeg = packet['negative']
-                numPos = packet['positive']
-                numNeu = packet['neutral']
-                dfNeg = pd.DataFrame({'Time': t, 'Number of Tweets': numNeg, 'Sentiment': 0}, index = [0])
-                sentimentDF = sentimentDF.append(dfNeg)
-                dfPos = pd.DataFrame({'Time': t, 'Number of Tweets': numPos, 'Sentiment': 2}, index = [0])
-                sentimentDF = sentimentDF.append(dfPos)
-                dfNeu = pd.DataFrame({'Time': t, 'Number of Tweets': numNeu, 'Sentiment': 1}, index = [0])
-                sentimentDF = sentimentDF.append(dfNeu)
-            elif _packet.headers[0] == ('keyWords', b'1'):
-                packet = _packet.value['keywords']
-                wordList = list(keywordDF['Word'])
-                for item in packet:
-                    if item[0] not in wordList:
-                        newWordDF = pd.DataFrame({'Word': item[0], 'Freq': item[1]}, index = [0])
-                        keywordDF = keywordDF.append(newWordDF)
-                    else:
-                        keywordDF['Freq'][keywordDF['Word'] == item[0]] = keywordDF['Freq'][keywordDF['Word'] == item[0]] + item[1] #Using += results in a warning being printed
-            elif _packet.headers[0] == ('twitterFollow', b'1'):
-                packet = _packet.value
-                newDF = pd.DataFrame({'Time': packet['time'], 'imageURL': packet['image_url'], 'User': packet['user'],
-                                      'Text': packet['tweet'], 'neg': packet['negative'], 'pos': packet['positive'],
-                                      'neu': packet['neutral'], 'dAttitude': 0.0, 'dActivity': 0.0}, index = [0])
-                userDF = userDF.append(newDF)
-
+        if ddValue != None:
+            timeSeries, sentiments = sqlSentimentSelect(ddValue)
+            wordArray, countArray = sqlKeywordSelect(ddValue)
+            timeArray, userArray, tweetArray, dSentArray, dActArray = sqlUserSelect(ddValue)
+        else:
+            timeSeries = []
+            sentiments = np.asarray([[0,0,0]])
     except IndexError as e:
         print(e)
         pass
     finally:
-        #After appending the dataframes, do this to reset the indices or they'll all be zero
-        sentimentDF.reset_index(inplace = True, drop = True)
-        keywordDF.reset_index(inplace = True, drop = True)
-        userDF.reset_index(inplace = True, drop = True)
-        
-        time_series = sentimentDF['Time'][sentimentDF['Sentiment']==0].reset_index(drop=True)
-        wordFreq = keywordDF.nlargest(15, 'Freq')
-        
-        if len(userDF) > 0 and len(sentimentDF) > 0:
-            updateUserDF()
-        
-        if len(userDF) > 1:
-            tableColor = tableColors()
+        if len(timeArray) > 1:
+            tableColor = tableColors(len(timeArray))
         else:
             tableColor = ['lightcyan']
+            
+        sentimentChange = (sentiments[-1][1] - sentiments[-2][1]) - (sentiments[-1][0] - sentiments[-2][0])
+        if sentimentChange > 0:
+            sinceUpdateText = '+{}'.format(sentimentChange)
+            sinceUpdateColor = 'green'
+        else:
+            sinceUpdateText = '{}'.format(sentimentChange)
+            sinceUpdateColor = 'red'
 
     # Create the graph 
-    children = [
+    graph = [
                 html.Div([
                     html.Div([
                         dcc.Graph(
                             id='sentiment-line-graph',
                             figure={
                                 'data': [
-                                    #TODO: Disconnect line graph if there are gaps. DIFFICULT!
-                                    #TODO: Spline shape?
                                     go.Scatter(
-                                        x=time_series,
-                                        y=sentimentDF['Number of Tweets'][sentimentDF['Sentiment']==1].reset_index(drop=True),
+                                        x=timeSeries,
+                                        y=sentiments[0:,2],
                                         name="Neutral",
                                         opacity=1,
                                         mode='lines',
                                         line=dict(width=1, color='rgb(50, 50, 255)')
                                     ),
                                     go.Scatter(
-                                        x=time_series,
-                                        y=sentimentDF['Number of Tweets'][sentimentDF['Sentiment']==0].reset_index(drop=True),
+                                        x=timeSeries,
+                                        y=sentiments[0:,0],
                                         name="Negative",
                                         opacity=1,
                                         mode='lines',
                                         line=dict(width=1, color='rgb(255, 50, 50)')
                                     ),
                                     go.Scatter(
-                                        x=time_series,
-                                        y=sentimentDF['Number of Tweets'][sentimentDF['Sentiment']==2].reset_index(drop=True),
+                                        x=timeSeries,
+                                        y=sentiments[0:,1],
                                         name="Positive",
                                         opacity=1,
                                         mode='lines',
@@ -268,7 +264,8 @@ def update_graph_live(n):
                                                                                  'label': '12h',
                                                                                  'step': 'hour',
                                                                                  'stepmode': 'backward'},
-                                                                                {'step': 'all'}]}},
+                                                                                {'step': 'all',
+                                                                                 'label': '24h'}]}},
                                         'yaxis': {'title': {'text': 'Number of Mentions'}},
                                         'margin':{'b': 40, 't': 30}
                                         }
@@ -281,14 +278,14 @@ def update_graph_live(n):
                             figure={
                                 'data': [
                                     go.Bar(
-                                        x = wordFreq['Freq'][::-1],
-                                        y = wordFreq['Word'][::-1],
+                                        x = countArray,
+                                        y = wordArray,
                                         orientation = 'h',
                                         marker_color = 'lightskyblue'
                                     )
                                 ],
                                 'layout':{
-                                    'xaxis': {'title': {'text': 'Times seen'}},
+                                    'xaxis': {'title': {'text': 'Times seen in past 30 minutes'}},
                                     'yaxis': {'title': {'text': 'Keyword'}},
                                     'height': 343,
                                     'margin':{'t': 10, 'b': 30, 'r': 10},
@@ -308,7 +305,7 @@ def update_graph_live(n):
                                         header = dict(values = ['Time', 'User', 'Text', 'Sentiment change', 'Activity change'],
                                                       fill_color = 'lightskyblue',
                                                       font_size = 17),
-                                        cells = dict(values = [userDF['Time'][::-1], userDF['User'][::-1], userDF['Text'][::-1], userDF['dAttitude'][::-1], userDF['dActivity'][::-1]],
+                                        cells = dict(values = [timeArray, userArray, tweetArray, dSentArray, dActArray],
                                                      fill_color = tableColor,
                                                      suffix = ['', '', '', '%', '%'],
                                                      font_size = [12, 12, 12, 14, 14],
@@ -325,7 +322,53 @@ def update_graph_live(n):
                     ], style={'width': '50%', 'display': 'inline-block', 'padding': '0 0 0 0'})
                 ])
     ]
-    return children
+                                
+    sinceUpdate = html.Div([
+                    html.Div(html.H2(sinceUpdateText), style={'width': '15%', 'display': 'inline-block', 'color': sinceUpdateColor}),
+                    html.Div(html.H3('Sentiment since last update'), style={'width': '80%', 'display': 'inline-block'})
+                  ])
+                                
+                                
+    return graph, sinceUpdate
+
+
+topics = getRecentTopics()
+dropdownLabelArray = []
+for topic in topics:
+    dropdownLabelArray.append({'label': topic, 'value': topic})
+dropdown = [dcc.Dropdown(id = 'dropdown_selector', options = dropdownLabelArray, value = topics[0], 
+                         placeholder = topics[0], persistence = True)]
+
+print(topics)
+
+
+app.layout = html.Div(children = [
+        html.Div(html.H1('Real-time Twitter Analytics'), style={'width': '35%', 'display': 'inline-block', 'padding': '0 0 0 20'}),
+        html.Div([html.Div(children = 'Topic:')], style={'width': '5%', 'display': 'inline-block', 'padding': '0 0 0 20', 'margin-right': -40, 'vertical-align': 13}),
+        html.Div([html.Div(id = 'dropdown', children = dropdown)], style={'width': '15%', 'display': 'inline-block', 'padding': '0 0 0 20', 'margin-right': 150}),
+        html.Div([html.Div(id = 'since-update')], style = {'width': '30%', 'display': 'inline-block'}),
+        html.Div(id = 'live-graph'),
+        
+        
+        dcc.Interval(id = 'interval-component',
+                     interval = 1*60000, #check every minute
+                     n_intervals = 0
+                     )
+        ],
+        style = {'padding': '20px'})
+
+#TODO: selection resetting for some reason
+@app.callback(Output('dropdown', 'children'),
+              [Input('interval-component', 'n_intervals')])
+def updateDropdown(n):
+    topics = getRecentTopics()
+    dropdownLabelArray = []
+    for topic in topics:
+        dropdownLabelArray.append({'label': topic, 'value': topic})
+    dropdown = [dcc.Dropdown(id = 'dropdown_selector', options = dropdownLabelArray, persistence = True)]
+    return dropdown
+
+
 
 
 try:
@@ -334,7 +377,6 @@ except KeyboardInterrupt:
     print('\n\nKeyboard Interrupt')
 finally:
     #Make sure consumer closes successfully or it locks up the kafka server until you restart it
-    consumer.close()
     print('Consumer closed successfully')
     
     #Save csvs before closing/restarting.
