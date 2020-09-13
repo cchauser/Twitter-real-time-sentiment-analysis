@@ -111,6 +111,7 @@ class masterConsumer(object):
 #                print('Received packet from', message.headers[0][0])
                 if message.headers[0][0] == 'userTrack':
                     if message.headers[1][0] in prevSentiment:
+                        #TODO: Filter out whatever \U0001f440 is
                         if message.headers[1][0] in userBuffer:
                             userBuffer[message.headers[1][0]].append([message.value, prevSentiment[message.headers[1][0]], 0, 0, 0])
                         else:
@@ -132,7 +133,7 @@ class masterConsumer(object):
                     else:
                         self.createTables(message.headers[0][0])
                         textBuffer[message.headers[0][0]] = [text]
-                        searchTerms[message.headers[0][0]] = message.value['terms'] + ['amp']
+                        searchTerms[message.headers[0][0]] = message.value['terms'] + ['amp'] #TODO: if search terms change a restart is required to reflect changes
               
             currTime = int(time.time()) #Use int for database indexing purposes
     
@@ -166,7 +167,7 @@ class masterConsumer(object):
                     allwords = [nltk.word_tokenize(comment) for comment in textBuffer[topic]]
                     word_freq = nltk.FreqDist(itertools.chain(*allwords))
                     #Vocab is list of tuples: [(word, frequency), ...]
-                    vocab = word_freq.most_common(50+len(searchTerms)) # searchTerms will always be towards the top of the frequency distribution. This always returns top N non-search-terms
+                    vocab = word_freq.most_common(50+len(searchTerms[topic])) # searchTerms will always be towards the top of the frequency distribution. This always returns top N non-search-terms
                     i = 0
                     keywordPacket = []
                     while i < len(vocab):
@@ -191,7 +192,6 @@ class masterConsumer(object):
                 
                 
                 ### DON'T FORGET TO RESET YOUR BUFFER!
-                searchTerms = {}
                 previousPollTime = currTime
         
         
@@ -288,7 +288,7 @@ class masterConsumer(object):
             t3 = '{}_keyword'.format(topic)
             
             command =   '''DROP TABLE IF EXISTS
-                            {}. {}. {} 
+                            {0}. {1}. {2} 
                         '''.format(t1,t2,t3)
             self.cursor.execute(command)
             self.cxn.commit()
