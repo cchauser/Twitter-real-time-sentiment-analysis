@@ -7,17 +7,17 @@ Created on Mon May 11 13:31:14 2020
 """
 
 import dash
+import flask
 import time
-import os
 import dash_core_components as dcc
 import dash_html_components as html
-import pandas as pd
 import numpy as np
+import pandas as pd
 import plotly.graph_objs as go
 import MySQLdb as mysql
 
 from dash.dependencies import Input, Output
-from datetime import datetime, timedelta
+from datetime import datetime
 
 DATABASE = 'test'
 
@@ -34,30 +34,11 @@ print('Connected to mySQL server')
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions=True)
+app = flask.Flask(__name__)
+dApp = dash.Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions=True, server = app)
 
-app.title = 'Real-Time Analytics'
+dApp.title = 'Real-Time Analytics'
 
-server = app.server
-
-
-# d is date offset. ex: d = -1 saves data using yesterday's date
-def saveCSV(d = 0):
-    
-    date = datetime.now()
-    date -= timedelta(days = d)
-    
-    prefix = date.strftime('%m%d')
-    
-    try:
-        os.mkdir(prefix)
-    except:
-        pass
-    
-    sentimentDF.to_csv('{0}/{0}-sentimentDF.csv'.format(prefix), index=False)
-    keywordDF.to_csv('{0}/{0}-keywordDF.csv'.format(prefix), index=False)
-    userDF.to_csv('{0}/{0}-userDF.csv'.format(prefix), index=False)
-    
 
 def tableColors(n):
     
@@ -70,24 +51,6 @@ def tableColors(n):
     #the colors so that all of the entries retain the same colors and the newest gets the next color
     tableColor = tableColor[:n][::-1]
     return [tableColor * 5]
-
-@app.callback(Output('save_success', 'children'),
-              [Input('save-button', 'n_clicks')])
-def button_save_csv(n_clicks):
-    if n_clicks > 0:
-    
-        prefix = datetime.fromtimestamp(time.time()).strftime('%m%d')
-        try:
-            os.mkdir(prefix)
-        except:
-            pass
-        
-        sentimentDF.to_csv('{0}/{0}-sentimentDF.csv'.format(prefix), index=False)
-        keywordDF.to_csv('{0}/{0}-keywordDF.csv'.format(prefix), index=False)
-        userDF.to_csv('{0}/{0}-userDF.csv'.format(prefix), index=False)
-        return 'Save Successful'
-    else:
-        return 'Click this button to save the data'
     
 def getRecentTopics():
     cnx = mysql.connect(user = mysqlUser, 
@@ -188,7 +151,7 @@ def sqlUserSelect(topic):
     cnx.close()
     return timeArray, userArray, tweetArray, dSentArray, dActArray
 
-@app.callback([Output('live-graph', 'children'),
+@dApp.callback([Output('live-graph', 'children'),
                Output('since-update', 'children')],
               [Input('interval-component', 'n_intervals'),
                Input('dropdown_selector', 'value')])
@@ -312,7 +275,6 @@ def update_graph_live(n, ddValue):
                                                      align = ['center', 'center', 'left', 'center', 'center'])
                                     )
                                 ],
-                                #TODO: Pretty layout
                                 'layout':{
                                     'height': 343,
                                     'margin':{'t': 10, 'b': 10, 'l': 10}
@@ -342,7 +304,7 @@ dropdown = [dcc.Dropdown(id = 'dropdown_selector', options = dropdownLabelArray,
 print(topics)
 
 
-app.layout = html.Div(children = [
+dApp.layout = html.Div(children = [
         html.Div(html.H1('Real-time Twitter Analytics'), style={'width': '35%', 'display': 'inline-block', 'padding': '0 0 0 20'}),
         html.Div([html.Div(children = 'Topic:')], style={'width': '5%', 'display': 'inline-block', 'padding': '0 0 0 20', 'margin-right': -40, 'vertical-align': 13}),
         html.Div([html.Div(id = 'dropdown', children = dropdown)], style={'width': '15%', 'display': 'inline-block', 'padding': '0 0 0 20', 'margin-right': 150}),
@@ -358,26 +320,24 @@ app.layout = html.Div(children = [
         style = {'padding': '20px'})
 
 #TODO: selection resetting for some reason
-@app.callback(Output('dropdown', 'children'),
+@dApp.callback(Output('dropdown', 'children'),
               [Input('interval-component', 'n_intervals')])
 def updateDropdown(n):
     topics = getRecentTopics()
     dropdownLabelArray = []
     for topic in topics:
         dropdownLabelArray.append({'label': topic, 'value': topic})
-    dropdown = [dcc.Dropdown(id = 'dropdown_selector', options = dropdownLabelArray, persistence = True)]
+    dropdown = [dcc.Dropdown(id = 'dropdown_selector', options = dropdownLabelArray, value = topics[0], persistence = True)]
     return dropdown
 
 
 
-
-try:
-    app.run_server(debug = True)
-except KeyboardInterrupt:
-    print('\n\nKeyboard Interrupt')
-finally:
-    #Make sure consumer closes successfully or it locks up the kafka server until you restart it
-    print('Consumer closed successfully')
-    
-    #Save csvs before closing/restarting.
-#    saveCSV()
+if __name__ == '__main__':
+    try:
+        app.run()
+    except KeyboardInterrupt:
+        print('\n\nKeyboard Interrupt')
+    finally:
+        #Make sure consumer closes successfully or it locks up the kafka server until you restart it
+        print('Consumer closed successfully')
+        
