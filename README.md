@@ -11,7 +11,7 @@ This project uses:
 * NLTK
 * mySQL
 
-This project has been launched! You can see it run at [chauser.me](chauser.me).
+This project has been launched! You can see it run at [chauser.me](chauser.me). Please note the server won't have 100% up-time while I work on getting a dedicated server to run it.
 
 You can find a quickstart guide to setting up Kafka [here](https://kafka.apache.org/quickstart). You'll need two topics. One called "TwitterStream" and one called "FrontEnd". You will also need a set of Twitter API keys that can be obtained [here](https://developer.twitter.com/en/docs/basics/getting-started). Save your keys in a txt file named 'twitterkeys.txt' with each key/token on a seperate line.
 
