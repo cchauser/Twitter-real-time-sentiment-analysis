@@ -59,6 +59,9 @@ class TweetsListener(StreamListener):
                     
                 if message['user']['id_str'] in self.userArg:
                     print(tweet, message['user']['screen_name'])
+                    tweet = re.sub('\\U........', ' ', tweet).strip()
+                    while '  ' in tweet:
+                        tweet = tweet.replace('  ', ' ')
                     packet = {'time': int(time()), 'user': message['user']['screen_name'], 'tweet': tweet}
                     self.producer.send('TwitterStream', value=packet, headers = [('userTrack', b'1'), (self.header, b'1')])
                 else:
