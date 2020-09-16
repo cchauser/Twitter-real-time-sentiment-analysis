@@ -25,7 +25,7 @@ from nltk import word_tokenize
 
 class masterConsumer(object):
     
-    def __init__(self):
+    def __init__(self, DATABASE):
         print("Starting consumer")
         self.consumer = KafkaConsumer(
             'TwitterStream',
@@ -50,14 +50,7 @@ class masterConsumer(object):
         
         self.__mysqlUser = keys[0].replace('\n', '')
         self.__mysqlPass = keys[1].replace('\n', '')
-        
-        self.cnx = mysql.connect(user = self.__mysqlUser, 
-                                 password = self.__mysqlPass, 
-                                 host = '127.0.0.1',
-                                 database = 'test')
-        print('Connected to mySQL server')
-        self.cursor = self.cnx.cursor()
-        print('Cursor connected')
+        self.DATABASE = DATABASE
 
 
     def removeStopWords(self, text):
@@ -199,6 +192,11 @@ class masterConsumer(object):
     #TargetDB specifies whether it's keyword, user, or sentiment
     #Packet contains all the insert data
     def sqlInsert(self, topic, dbType, packet):
+        cnx = mysql.connect(user = self.__mysqlUser, 
+                            password = self.__mysqlPass, 
+                            host = '127.0.0.1',
+                            database = self.DATABASE)
+        cursor = cnx.cursor()
         #Table name schema topic_type (eg. nasa_sentiment)
         table = '{}_{}'.format(topic, dbType)
         
@@ -212,11 +210,17 @@ class masterConsumer(object):
         #End result:
         #'INSERT INTO topic_dbType (field1, ..., fieldn) VALUES (%(field1)s, ..., %(fieldn)s)'
         
-        self.cursor.execute(insertCommand, packet)
-        self.cnx.commit()
+        cursor.execute(insertCommand, packet)
+        cnx.commit()
+        cnx.close()
     
     
     def sqlUpdate(self, topic, dbType, key, packet):
+        cnx = mysql.connect(user = self.__mysqlUser, 
+                            password = self.__mysqlPass, 
+                            host = '127.0.0.1',
+                            database = self.DATABASE)
+        cursor = cnx.cursor()
         table = '{}_{}'.format(topic, dbType)
         
         updateCommand = 'UPDATE {} SET '.format(table)
@@ -226,10 +230,17 @@ class masterConsumer(object):
         
         packet[key[0]] = key[1] #Add key to packet so the cursor knows what to do with it
         
-        self.cursor.execute(updateCommand, packet)
-        self.cnx.commit()
+        cursor.execute(updateCommand, packet)
+        cnx.commit()
+        cnx.close()
     
     def createTables(self, topic):
+        cnx = mysql.connect(user = self.__mysqlUser, 
+                            password = self.__mysqlPass, 
+                            host = '127.0.0.1',
+                            database = self.DATABASE)
+        cursor = cnx.cursor()
+        
         sentTableName = '{}_sentiment'.format(topic)
         userTableName = '{}_user'.format(topic)
         keywordTableName = '{}_keyword'.format(topic)
@@ -258,8 +269,8 @@ class masterConsumer(object):
                 ENGINE = InnoDB'''.format(userTableName)
                 )
         
-        # Against best practices to have shared primary keys (in this case time was going to be the PK)
-        # So make word_index the PK but for all intents and purposes time is the PK
+        # It is against best practices to have shared primary keys (in this case time was going to be the PK)
+        # So make word_index the PK but for all intents and purposes time is the filed being used to find records
         TABLES[keywordTableName] = (
                 '''
                 CREATE TABLE {} (
@@ -271,35 +282,23 @@ class masterConsumer(object):
                 ENGINE = InnoDB'''.format(keywordTableName)
                 )
 
+        #TODO: Touch table to update the LAST_UPDATE field. Allows frontendDash to start without error
         for tableName in TABLES:
             tableDesc = TABLES[tableName]
             try:
-                self.cursor.execute(tableDesc)
+                cursor.execute(tableDesc)
                 print('Created {}'.format(tableName))
             except Exception as err:
                 print(err)
+        cnx.close()
                 
-    def sqlDrop(self, user, password, topic):
-        if user != self.__mysqlUser or password != self.__mysqlPass:
-            return False
-        else:
-            t1 = '{}_sentiment'.format(topic)
-            t2 = '{}_user'.format(topic)
-            t3 = '{}_keyword'.format(topic)
-            
-            command =   '''DROP TABLE IF EXISTS
-                            {0}. {1}. {2} 
-                        '''.format(t1,t2,t3)
-            self.cursor.execute(command)
-            self.cxn.commit()
-            return True
         
     #TODO: Prune table entries that are too old to preserve disk space??
 
 if __name__ == '__main__':   
     while True:
         try:
-            mc = masterConsumer()
+            mc = masterConsumer('test')
             mc.runConsumer()        
         except KeyboardInterrupt:
             print("\n\nKeyboard interrupt")
@@ -310,6 +309,5 @@ if __name__ == '__main__':
             print('restarting')
         finally:
             mc.consumer.close()
-            mc.cnx.close()
-
+            
     print('Consumer closed successfully')

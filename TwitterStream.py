@@ -58,10 +58,11 @@ class TweetsListener(StreamListener):
                     
                     
                 if message['user']['id_str'] in self.userArg:
-                    print(tweet, message['user']['screen_name'])
-                    tweet = re.sub('\\U........', ' ', tweet).strip()
+                    tweet = tweet.encode('ASCII', 'ignore').decode() #Removes emojis
                     while '  ' in tweet:
                         tweet = tweet.replace('  ', ' ')
+                    
+                    print(tweet, message['user']['screen_name'])
                     packet = {'time': int(time()), 'user': message['user']['screen_name'], 'tweet': tweet}
                     self.producer.send('TwitterStream', value=packet, headers = [('userTrack', b'1'), (self.header, b'1')])
                 else:
@@ -114,21 +115,18 @@ def startStream(keywords, users):
             continue
 
 
-
 if __name__ == "__main__":
-    p = multiprocessing.Process(target = startStream, args=(['biden', 'kamala'], ['20346956']))
+    p = multiprocessing.Process(target = startStream, args=(['biden', 'kamala'], ['939091']))
     p.start()
     
     c = multiprocessing.Process(target = startStream, args=(['trump', 'pence'], ['25073877']))
     c.start()
     
-    v = multiprocessing.Process(target = startStream, args=(['nba', 'playoffs'], ['19923144']))
-    v.start()
-    
-    startStream(['nfl', 'mahomes'], ['19426551'])#, '759251', '1367531', '2836421', '2899773086'])
+    startStream(['nba', 'playoffs', 'basketball', 'basket ball'], ['19923144'])#, '759251', '1367531', '2836421', '2899773086'])
     p.join()
     c.join()
-    v.join()
+#    v.join()
+#    b.join()
     
 #    TODO: Add a listener that will spawn a new stream on a new process.
         
