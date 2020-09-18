@@ -11,6 +11,7 @@ import json
 import time
 import string
 import nltk
+import sys
 import itertools
 import MySQLdb as mysql
 
@@ -78,7 +79,7 @@ class masterConsumer(object):
                 tweet[4] = prevSent[topic]['neutral'] - tweet[1]['neutral']
                 
                 #Percentage of change from the original measurement
-                sentimentChange = round((tweet[3] - tweet[2]) / (tweet[1]['positive'] - tweet[1]['negative']) * 100, 2)
+                sentimentChange = round(((prevSent[topic]['positive'] - prevSent[topic]['negative']) - (tweet[1]['positive'] - tweet[1]['negative'])) / (tweet[1]['positive'] - tweet[1]['negative']) * 100, 2)
                 activityChange = round((tweet[2] + tweet[3] + tweet[4]) / (tweet[1]['negative'] + tweet[1]['positive'] + tweet[1]['neutral']) * 100, 2)
                 
                 #Update the table
@@ -104,7 +105,6 @@ class masterConsumer(object):
 #                print('Received packet from', message.headers[0][0])
                 if message.headers[0][0] == 'userTrack':
                     if message.headers[1][0] in prevSentiment:
-                        #TODO: Filter out whatever \U0001f440 is
                         if message.headers[1][0] in userBuffer:
                             userBuffer[message.headers[1][0]].append([message.value, prevSentiment[message.headers[1][0]], 0, 0, 0])
                         else:
@@ -306,6 +306,7 @@ if __name__ == '__main__':
         except Exception as e:
             print("\n\nException handler:")
             print(e)
+            print('On line {}'.format(sys.exc_info()[-1].tb_lineno))
             print('restarting')
         finally:
             mc.consumer.close()
