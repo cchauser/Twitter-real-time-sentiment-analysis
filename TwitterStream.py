@@ -9,13 +9,13 @@ from tweepy.auth import OAuthHandler
 from tweepy import Stream
 from tweepy.streaming import StreamListener
 from kafka import KafkaProducer
-from time import time
+from time import time, sleep
 import multiprocessing
 import json
 import os
 import re
 
-with open('twitterkeys.txt') as f:
+with open('/home/cullen/keys/twitterkeys.txt') as f:
     keys = f.readlines()
 
 consumer_key = keys[0].replace('\n', '')
@@ -62,8 +62,8 @@ class TweetsListener(StreamListener):
                     while '  ' in tweet:
                         tweet = tweet.replace('  ', ' ')
                     
-                    print(tweet, message['user']['screen_name'])
-                    packet = {'time': int(time()), 'user': message['user']['screen_name'], 'tweet': tweet}
+                    # print(tweet, message['user']['screen_name'])
+                    packet = {'topic': ['userTrack', self.header], 'time': int(time()), 'user': message['user']['screen_name'], 'tweet': tweet}
                     self.producer.send('TwitterStream', value=packet, headers = [('userTrack', b'1'), (self.header, b'1')])
                 else:
                     tweet = tweet.lower()
@@ -79,13 +79,13 @@ class TweetsListener(StreamListener):
                         return True
                     
                     
-#                    print(tweet)
-                    packet = {'tweet': tweet, 'terms': self.keywordArg}
-                    self.producer.send('TwitterStream', value=packet, headers = [(self.header, b'1')])
+                    print(self.header)
+                    packet = {'topic': [self.header], 'tweet': tweet, 'terms': self.keywordArg}
+                    self.producer.send('TwitterStream', value=packet)
             return True
         except Exception as e:
-            pass
-#            print("Error on_data: %s" % str(e))
+            # pass
+            print("Error on_data: %s" % str(e))
         return True
 
     def if_error(self, status):
@@ -118,10 +118,10 @@ def startStream(keywords, users):
 if __name__ == "__main__":
     p = multiprocessing.Process(target = startStream, args=(['biden', 'kamala'], ['939091']))
     p.start()
-    
+    sleep(1)
     c = multiprocessing.Process(target = startStream, args=(['trump', 'pence'], ['25073877']))
     c.start()
-    
+    sleep(1)
     startStream(['nba', 'playoffs', 'basketball', 'basket ball'], ['19923144'])#, '759251', '1367531', '2836421', '2899773086'])
     p.join()
     c.join()

@@ -38,7 +38,7 @@ class masterConsumer(object):
              consumer_timeout_ms = 60000)
         self.consumer.subscribe('TwitterStream')
         print(self.consumer.subscription())
-        print(self.consumer.bootstrap_connected())
+        # print(self.consumer.bootstrap_connected())
         
         #This model is generalized sentiment analysis trained on sentiment140 from kaggle
         self.model = load_model('TwitSent.h5')
@@ -46,7 +46,7 @@ class masterConsumer(object):
             self.tokenizer = pickle.load(file)
             
         #TODO: Allow user to provide login at instantiation
-        with open('mysqlKeys.txt') as f:
+        with open('/home/cullen/keys/mysqlKeys.txt') as f:
             keys = f.readlines()
         
         self.__mysqlUser = keys[0].replace('\n', '')
@@ -102,17 +102,17 @@ class masterConsumer(object):
         for message in self.consumer:
             #Processes ~1700 per min. Estimate pollTimeSeconds based on this info
             if message.topic == 'TwitterStream':
-#                print('Received packet from', message.headers[0][0])
-                if message.headers[0][0] == 'userTrack':
-                    if message.headers[1][0] in prevSentiment:
-                        if message.headers[1][0] in userBuffer:
-                            userBuffer[message.headers[1][0]].append([message.value, prevSentiment[message.headers[1][0]], 0, 0, 0])
+                # print('Received packet from', message.value['topic'][0])
+                if message.value['topic'][0] == 'userTrack':
+                    if message.value['topic'][1] in prevSentiment:
+                        if message.value['topic'][1] in userBuffer:
+                            userBuffer[message.value['topic'][1]].append([message.value, prevSentiment[message.value['topic'][1]], 0, 0, 0])
                         else:
-                            userBuffer[message.headers[1][0]] = [[message.value, prevSentiment[message.headers[1][0]], 0, 0, 0]]
+                            userBuffer[message.value['topic'][1]] = [[message.value, prevSentiment[message.value['topic'][1]], 0, 0, 0]]
                         userPacket = {'time': message.value['time'], 'user': message.value['user'], 
                                       'tweet': message.value['tweet'], 'deltasentiment': 0, 'deltaactivity': 0}
                         
-                        self.sqlInsert(message.headers[1][0], 'user', userPacket)
+                        self.sqlInsert(message.value['topic'][1], 'user', userPacket)
                         
 
                     #We don't save tweets from target users that happen before we have a chance to get a baseline sentiment.
@@ -121,12 +121,12 @@ class masterConsumer(object):
                     text = message.value['tweet']
                     text = self.removeStopWords(text)
                     #check if topic of stream is in the textbuffer already
-                    if message.headers[0][0] in textBuffer:
-                        textBuffer[message.headers[0][0]].append(text)
+                    if message.value['topic'][0] in textBuffer:
+                        textBuffer[message.value['topic'][0]].append(text)
                     else:
-                        self.createTables(message.headers[0][0])
-                        textBuffer[message.headers[0][0]] = [text]
-                        searchTerms[message.headers[0][0]] = message.value['terms'] + ['amp'] #TODO: if search terms change a restart is required to reflect changes
+                        self.createTables(message.value['topic'][0])
+                        textBuffer[message.value['topic'][0]] = [text]
+                        searchTerms[message.value['topic'][0]] = message.value['terms'] + ['amp'] #TODO: if search terms change a restart is required to reflect changes
               
             currTime = int(time.time()) #Use int for database indexing purposes
     
@@ -135,6 +135,8 @@ class masterConsumer(object):
                 ### SENTIMENT
                 
                 for topic in textBuffer:
+                    if len(textBuffer[topic]) == 0:
+                        continue
                     #TODO: Multiprocess/thread this with mutexes. When there get to be a lot of streams it WILL fall behind
                     
                     
@@ -174,7 +176,10 @@ class masterConsumer(object):
                         
                     #TODO: Why use many insert commands when one do trick?
                     for item in keywordPacket:
-                        self.sqlInsert(topic, 'keyword', item)
+                        try:
+                            self.sqlInsert(topic, 'keyword', item)
+                        except:
+                            continue
                         
                     textBuffer[topic].clear()
                 
@@ -295,7 +300,7 @@ class masterConsumer(object):
         
     #TODO: Prune table entries that are too old to preserve disk space??
 
-if __name__ == '__main__':   
+if __name__ == '__main__':
     while True:
         try:
             mc = masterConsumer('test')
