@@ -22,7 +22,7 @@ from datetime import datetime
 DATABASE = 'test'
 
 
-with open('mysqlKeys.txt') as f:
+with open('/home/cullen/keys/clientKeys.txt') as f:
     keys = f.readlines()
 
 mysqlUser = keys[0].replace('\n', '')
