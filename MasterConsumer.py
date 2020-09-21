@@ -22,6 +22,8 @@ from kafka import KafkaConsumer
 from nltk.corpus import stopwords
 from nltk import word_tokenize
 
+#You'll have to change your working directory if you run it on your own machine
+wdir = '/home/cullen'
 
 
 class masterConsumer(object):
@@ -41,12 +43,12 @@ class masterConsumer(object):
         # print(self.consumer.bootstrap_connected())
         
         #This model is generalized sentiment analysis trained on sentiment140 from kaggle
-        self.model = load_model('TwitSent.h5')
-        with open('Toke_TwittSent.pkl', 'rb') as file:
+        self.model = load_model('{}/models/TwitSent.h5'.format(wdir))
+        with open('{}/models/Toke_TwittSent.pkl'.format(wdir), 'rb') as file:
             self.tokenizer = pickle.load(file)
             
         #TODO: Allow user to provide login at instantiation
-        with open('/home/cullen/keys/mysqlKeys.txt') as f:
+        with open('{}/keys/mysqlKeys.txt'.format(wdir)) as f:
             keys = f.readlines()
         
         self.__mysqlUser = keys[0].replace('\n', '')
@@ -111,7 +113,6 @@ class masterConsumer(object):
                             userBuffer[message.value['topic'][1]] = [[message.value, prevSentiment[message.value['topic'][1]], 0, 0, 0]]
                         userPacket = {'time': message.value['time'], 'user': message.value['user'], 
                                       'tweet': message.value['tweet'], 'deltasentiment': 0, 'deltaactivity': 0}
-                        
                         self.sqlInsert(message.value['topic'][1], 'user', userPacket)
                         
 

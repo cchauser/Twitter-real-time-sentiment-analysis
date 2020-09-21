@@ -15,7 +15,10 @@ import json
 import os
 import re
 
-with open('/home/cullen/keys/twitterkeys.txt') as f:
+#You'll have to change your working directory if you run it on your own machine
+wdir = '/home/cullen'
+
+with open('{}/keys/twitterkeys.txt'.format(wdir)) as f:
     keys = f.readlines()
 
 consumer_key = keys[0].replace('\n', '')
@@ -25,8 +28,6 @@ access_secret= keys[3].replace('\n', '')
 
 httpRegex = "@\S+|https?:\S+|http?:\S|[^A-Za-z0-9]+"
 
-
-#TODO: Add a news mode which filters out news headlines with our search terms if we're following news posters like CNN, MSNBC etc
 
 
 # we create this class that inherits from the StreamListener in tweepy StreamListener
@@ -38,18 +39,16 @@ class TweetsListener(StreamListener):
         self.producer = KafkaProducer(bootstrap_servers=os.environ.get('KAFKA_HOST', 'localhost:9092'),
                              value_serializer = lambda x: json.dumps(x).encode('utf-8'),
                              batch_size = 0)
-        self.header = keywordArg[0]
+        self.topic = keywordArg[0]
         
         
     # we override the on_data() function in StreamListener
     def on_data(self, data):
         try:
             message = json.loads(data)
-            try:
-                #This filters out retweets. I only want OC
-                message['retweeted_status'] #retweeted_status is only present in the JSON if the tweet is not a retweet it will raise a keyerror
+            if 'retweeted_status' in message:
                 return True
-            except:
+            else:
                 #Twitter clips off long tweets and flags as truncated then moves them to an extended tweet section in the json
                 if message['truncated']:
                     tweet = message['extended_tweet']['full_text']
@@ -62,9 +61,9 @@ class TweetsListener(StreamListener):
                     while '  ' in tweet:
                         tweet = tweet.replace('  ', ' ')
                     
-                    # print(tweet, message['user']['screen_name'])
-                    packet = {'topic': ['userTrack', self.header], 'time': int(time()), 'user': message['user']['screen_name'], 'tweet': tweet}
-                    self.producer.send('TwitterStream', value=packet, headers = [('userTrack', b'1'), (self.header, b'1')])
+                    print(tweet, message['user']['screen_name'])
+                    packet = {'topic': ['userTrack', self.topic], 'time': int(time()), 'user': message['user']['screen_name'], 'tweet': tweet}
+                    self.producer.send('TwitterStream', value=packet)
                 else:
                     tweet = tweet.lower()
                     tweet = tweet.replace('\n\n', ' ')
@@ -79,8 +78,8 @@ class TweetsListener(StreamListener):
                         return True
                     
                     
-                    print(self.header)
-                    packet = {'topic': [self.header], 'tweet': tweet, 'terms': self.keywordArg}
+#                    print(self.header)
+                    packet = {'topic': [self.topic], 'tweet': tweet, 'terms': self.keywordArg}
                     self.producer.send('TwitterStream', value=packet)
             return True
         except Exception as e:
