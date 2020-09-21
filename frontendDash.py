@@ -21,8 +21,9 @@ from datetime import datetime
 
 DATABASE = 'test'
 
+wdir = '/home/cullen'
 
-with open('/home/cullen/keys/clientKeys.txt') as f:
+with open('{}/keys/clientKeys.txt'.format(wdir)) as f:
     keys = f.readlines()
 
 mysqlUser = keys[0].replace('\n', '')
