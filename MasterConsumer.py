@@ -81,7 +81,7 @@ class masterConsumer(object):
                 tweet[4] = prevSent[topic]['neutral'] - tweet[1]['neutral']
                 
                 #Percentage of change from the original measurement
-                sentimentChange = round(((prevSent[topic]['positive'] - prevSent[topic]['negative']) - (tweet[1]['positive'] - tweet[1]['negative'])) / (tweet[1]['positive'] - tweet[1]['negative']) * 100, 2)
+                sentimentChange = round(((prevSent[topic]['positive'] - prevSent[topic]['negative']) - (tweet[1]['positive'] - tweet[1]['negative'])) / abs(tweet[1]['positive'] - tweet[1]['negative']) * 100, 2)
                 activityChange = round((tweet[2] + tweet[3] + tweet[4]) / (tweet[1]['negative'] + tweet[1]['positive'] + tweet[1]['neutral']) * 100, 2)
                 
                 #Update the table
@@ -304,7 +304,7 @@ class masterConsumer(object):
 if __name__ == '__main__':
     while True:
         try:
-            mc = masterConsumer('test')
+            mc = masterConsumer('production')
             mc.runConsumer()        
         except KeyboardInterrupt:
             print("\n\nKeyboard interrupt")

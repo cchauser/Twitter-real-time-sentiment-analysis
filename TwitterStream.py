@@ -83,8 +83,8 @@ class TweetsListener(StreamListener):
                     self.producer.send('TwitterStream', value=packet)
             return True
         except Exception as e:
-            # pass
-            print("Error on_data: %s" % str(e))
+            pass
+            # print("Error on_data: %s" % str(e))
         return True
 
     def if_error(self, status):

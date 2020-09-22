@@ -19,7 +19,7 @@ import MySQLdb as mysql
 from dash.dependencies import Input, Output
 from datetime import datetime
 
-DATABASE = 'test'
+DATABASE = 'production'
 
 wdir = '/home/cullen'
 
