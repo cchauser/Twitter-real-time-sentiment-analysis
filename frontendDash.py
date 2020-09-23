@@ -43,7 +43,7 @@ dApp.title = 'Real-Time Analytics'
 
 def tableColors(n):
     
-    oddColor = 'lightcyan'
+    oddColor = 'rgb(174,218,251)'
     evenColor = 'white'
     
     tableColor = [oddColor, evenColor] * round(n/2)
@@ -103,21 +103,27 @@ def sqlKeywordSelect(topic):
     minTimeSelection = int(time.time()) - rollingKeywordWindowSeconds
     
     selectQuery = '''
-                    SELECT word, SUM(times_seen) as n
+                    SELECT word, SUM(times_seen) as t, SUM(negative) as neg, SUM(positive) as pos, SUM(neutral) as neu
                     FROM {0}_keyword
                     WHERE time > {1}
                     GROUP BY word
-                    ORDER BY n  
+                    ORDER BY t DESC
                   '''.format(topic, minTimeSelection)
     
     cursor.execute(selectQuery)
-    wordArray = []
-    countArray = []
+    container = []
+    i = 0
     for item in cursor:
-        wordArray.append(item[0])
-        countArray.append(int(item[1]))
+        container.append(list(item))
+        i += 1
+        if i == 15:
+            break
+#        wordArray.append(item[0])
+#        countArray.append(int(item[1]))
     cnx.close()
-    return wordArray[:15], countArray[:15]
+    container = container[::-1]
+    df = pd.DataFrame(container, columns = ['word', 'times_seen', 'negative', 'positive', 'neutral'])
+    return df
     
 def sqlUserSelect(topic):
     cnx = mysql.connect(user = mysqlUser, 
@@ -160,7 +166,7 @@ def update_graph_live(n, ddValue):
     try:
         if ddValue != None:
             timeSeries, sentiments = sqlSentimentSelect(ddValue)
-            wordArray, countArray = sqlKeywordSelect(ddValue)
+            df = sqlKeywordSelect(ddValue)
             timeArray, userArray, tweetArray, dSentArray, dActArray = sqlUserSelect(ddValue)
         else:
             timeSeries = []
@@ -169,6 +175,9 @@ def update_graph_live(n, ddValue):
         print(e)
         pass
     finally:
+        red = '#FF3E30'
+        blue = '#176BEF'
+        green = 'rgb(23,175,82)'
         if len(timeArray) > 1:
             tableColor = tableColors(len(timeArray))
         else:
@@ -177,10 +186,10 @@ def update_graph_live(n, ddValue):
         sentimentChange = (sentiments[-1][1] - sentiments[-2][1]) - (sentiments[-1][0] - sentiments[-2][0])
         if sentimentChange > 0:
             sinceUpdateText = '+{}'.format(sentimentChange)
-            sinceUpdateColor = 'green'
+            sinceUpdateColor = green
         else:
             sinceUpdateText = '{}'.format(sentimentChange)
-            sinceUpdateColor = 'red'
+            sinceUpdateColor = red
 
     # Create the graph 
     graph = [
@@ -192,11 +201,19 @@ def update_graph_live(n, ddValue):
                                 'data': [
                                     go.Scatter(
                                         x=timeSeries,
+                                        y=sentiments[0:,1],
+                                        name="Positive",
+                                        opacity=1,
+                                        mode='lines',
+                                        line=dict(width=1.25, color= green)
+                                    ),
+                                    go.Scatter(
+                                        x=timeSeries,
                                         y=sentiments[0:,2],
                                         name="Neutral",
                                         opacity=1,
                                         mode='lines',
-                                        line=dict(width=1, color='rgb(50, 50, 255)')
+                                        line=dict(width=1.25, color= blue)
                                     ),
                                     go.Scatter(
                                         x=timeSeries,
@@ -204,15 +221,7 @@ def update_graph_live(n, ddValue):
                                         name="Negative",
                                         opacity=1,
                                         mode='lines',
-                                        line=dict(width=1, color='rgb(255, 50, 50)')
-                                    ),
-                                    go.Scatter(
-                                        x=timeSeries,
-                                        y=sentiments[0:,1],
-                                        name="Positive",
-                                        opacity=1,
-                                        mode='lines',
-                                        line=dict(width=1, color='rgb(50, 255, 50)')
+                                        line=dict(width=1.25, color= red)
                                     )
                                 ],
                                 'layout':{
@@ -242,19 +251,36 @@ def update_graph_live(n, ddValue):
                             figure={
                                 'data': [
                                     go.Bar(
-                                        x = countArray,
-                                        y = wordArray,
+                                        y = df['word'],
+                                        x = df['negative'],
+                                        name = 'Negative',
                                         orientation = 'h',
-                                        marker_color = 'lightskyblue'
+                                        marker = dict(color  = red)
+                                    ),
+                                    go.Bar(
+                                        y = df['word'],
+                                        x = df['neutral'],
+                                        name = 'Neutral',
+                                        orientation = 'h',
+                                        marker = dict(color  = blue)
+                                    ),
+                                    go.Bar(
+                                        y = df['word'],
+                                        x = df['positive'],
+                                        name = 'Positive',
+                                        orientation = 'h',
+                                        marker = dict(color  = green)
                                     )
                                 ],
                                 'layout':{
                                     'xaxis': {'title': {'text': 'Times seen in past 30 minutes'}},
                                     'yaxis': {'title': {'text': 'Keyword'}},
+                                    
                                     'height': 343,
                                     'margin':{'t': 10, 'b': 30, 'r': 10},
                                     'font': {'size': 12},
-                                    'hovermode':'closest'
+                                    'hovermode':'closest',
+                                    'barmode': 'stack'
                                 }
                             }
                         )
@@ -267,7 +293,8 @@ def update_graph_live(n, ddValue):
                                     go.Table(
                                         columnwidth = [40, 60, 220, 55, 55],
                                         header = dict(values = ['Time', 'User', 'Text', 'Sentiment change', 'Activity change'],
-                                                      fill_color = 'lightskyblue',
+                                                      fill_color = blue,
+                                                      font_color = '#FFFFFF',
                                                       font_size = 17),
                                         cells = dict(values = [timeArray, userArray, tweetArray, dSentArray, dActArray],
                                                      fill_color = tableColor,
@@ -335,10 +362,7 @@ def updateDropdown(n):
 
 if __name__ == '__main__':
     try:
-        app.run()
+        app.run(debug = True)
+        pass
     except KeyboardInterrupt:
         print('\n\nKeyboard Interrupt')
-    finally:
-        #Make sure consumer closes successfully or it locks up the kafka server until you restart it
-        print('Consumer closed successfully')
-        
