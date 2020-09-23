@@ -81,7 +81,7 @@ class masterConsumer(object):
                 tweet[4] = prevSent[topic]['neutral'] - tweet[1]['neutral']
                 
                 #Percentage of change from the original measurement
-                sentimentChange = round(((prevSent[topic]['positive'] - prevSent[topic]['negative']) - (tweet[1]['positive'] - tweet[1]['negative'])) / abs(tweet[1]['positive'] - tweet[1]['negative']) * 100, 2)
+                sentimentChange = round(((prevSent[topic]['positive'] - prevSent[topic]['negative']) - (tweet[1]['positive'] - tweet[1]['negative'])) / (tweet[1]['positive'] - tweet[1]['negative']) * 100, 2)
                 activityChange = round((tweet[2] + tweet[3] + tweet[4]) / (tweet[1]['negative'] + tweet[1]['positive'] + tweet[1]['neutral']) * 100, 2)
                 
                 #Update the table
@@ -148,9 +148,12 @@ class masterConsumer(object):
                     inputTweets = pad_sequences(self.tokenizer.texts_to_sequences(textBuffer[topic]), padding='pre', maxlen=70)
                     p = self.model.predict(inputTweets)
                     
+                    positiveThreshold = .6
+                    negativeThreshold = .4
+                    
                     #Querying a numpy array for truth values returns an array of booleans which can be interpreted as 1's and 0's. Hence the sum call
-                    numPositive = int(sum(p > .6)[0]) #Transform to int for data consumption purposes
-                    numNegative = int(sum(p < .4)[0])
+                    numPositive = int(sum(p > positiveThreshold)[0]) #Transform to int for data consumption purposes
+                    numNegative = int(sum(p < negativeThreshold)[0])
                     numNeutral = len(textBuffer[topic]) - (numPositive + numNegative)
                     
                     sentimentPacket = {'time': currTime,'negative': numNegative, 'positive': numPositive, 'neutral': numNeutral}
@@ -172,12 +175,31 @@ class masterConsumer(object):
                             continue #do NOT iterate i after a pop
                         keywordPacket.append({'time': currTime,
                                               'word': vocab[i][0],
-                                              'times_seen': vocab[i][1]})
+                                              'times_seen': vocab[i][1],
+                                              'negative': 0,
+                                              'positive': 0,
+                                              'neutral': 0})
                         i += 1
+                    
+                    
+
+                    for tweet in range(len(allwords)):
+                        for item in keywordPacket:
+                            if item['word'] in allwords[tweet]:
+                                if p[tweet] < negativeThreshold:
+                                    item['negative'] += allwords[tweet].count(item['word'])
+                                elif p[tweet] > positiveThreshold:
+                                    item['positive'] += allwords[tweet].count(item['word'])
+                                else:
+                                    item['neutral'] += allwords[tweet].count(item['word'])
+                        
+                        
+
                         
                     #TODO: Why use many insert commands when one do trick?
                     for item in keywordPacket:
                         try:
+                            print(item)
                             self.sqlInsert(topic, 'keyword', item)
                         except:
                             continue
@@ -284,6 +306,9 @@ class masterConsumer(object):
                 time int(11) NOT NULL,
                 word varchar(20) NOT NULL,
                 times_seen int(11) NOT NULL,
+                negative int(11) NOT NULL, 
+                positive int(11) NOT NULL, 
+                neutral int(11) NOT NULL,
                 PRIMARY KEY (word_index) ) 
                 ENGINE = InnoDB'''.format(keywordTableName)
                 )
