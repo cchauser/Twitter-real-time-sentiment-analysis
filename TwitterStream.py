@@ -33,9 +33,9 @@ httpRegex = "@\S+|https?:\S+|http?:\S|[^A-Za-z0-9]+"
 # we create this class that inherits from the StreamListener in tweepy StreamListener
 class TweetsListener(StreamListener):
     
-    def __init__(self, keywordArg, userArg):
+    def __init__(self, keywordArg, userArg, filterwords):
         self.userArg = userArg
-        self.keywordArg = keywordArg
+        self.keywordArg = keywordArg + filterwords
         self.producer = KafkaProducer(bootstrap_servers=os.environ.get('KAFKA_HOST', 'localhost:9092'),
                              value_serializer = lambda x: json.dumps(x).encode('utf-8'),
                              batch_size = 0)
@@ -78,7 +78,7 @@ class TweetsListener(StreamListener):
                         return True
                     
                     
-#                    print(self.header)
+                    # print(self.topic)
                     packet = {'topic': [self.topic], 'tweet': tweet, 'terms': self.keywordArg}
                     self.producer.send('TwitterStream', value=packet)
             return True
@@ -96,12 +96,17 @@ class TweetsListener(StreamListener):
         return True
 
 
-def startStream(keywords, users):
+# Filter words are common words associated with what you're searching for but are so common they're going to skew
+# the keyword graph and are also too common to search for individually. For example if you want results on Joe Biden
+# you'll have the stream listen for 'biden' but not joe since that's too common, then filterwords will include 'joe'
+# 'joe' is going to appear with 'biden' often.
+def startStream(keywords, users, filterwords = []):
     print('Starting stream using', keywords)
     auth = OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_secret)
     
-    twitter_stream = Stream(auth, TweetsListener(keywords, users))
+    print(auth.oauth.verify)
+    twitter_stream = Stream(auth, TweetsListener(keywords, users, filterwords))
     while True:
         try:
             twitter_stream.filter(languages = ['en'], track=keywords, follow = users) # start the stream
@@ -115,16 +120,19 @@ def startStream(keywords, users):
 
 
 if __name__ == "__main__":
-    p = multiprocessing.Process(target = startStream, args=(['biden', 'kamala'], ['939091']))
+    p = multiprocessing.Process(target = startStream, args=(['biden', 'kamala', 'joebiden'], ['939091'], ['joe']))
     p.start()
-    sleep(1)
-    c = multiprocessing.Process(target = startStream, args=(['trump', 'pence'], ['25073877']))
+    sleep(2)
+    c = multiprocessing.Process(target = startStream, args=(['trump', 'pence', 'realdonaldtrump'], ['25073877'], ['donald']))
     c.start()
-    sleep(1)
-    startStream(['nba', 'playoffs', 'basketball', 'basket ball'], ['19923144'])#, '759251', '1367531', '2836421', '2899773086'])
+    sleep(2)
+    # v = multiprocessing.Process(target = startStream, args=(['scotus', 'supreme court', 'barrett'], [], ['supreme', 'court', 'amy', 'coney', 'trump']))
+    # v.start()
+    # sleep(2)
+    startStream(['nba', 'basketball', 'basket ball'], ['19923144'])#, '759251', '1367531', '2836421', '2899773086'])
     p.join()
     c.join()
-#    v.join()
+    # v.join()
 #    b.join()
     
 #    TODO: Add a listener that will spawn a new stream on a new process.
