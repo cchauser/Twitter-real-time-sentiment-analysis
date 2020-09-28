@@ -95,14 +95,21 @@ class masterConsumer(object):
                 
     
     def runConsumer(self):
-        pollTimeSeconds = 180 #buffer for 3 minutes. any lower and you risk the kafka server producing latency
+        with open('{}/models/extendedStopwords.txt'.format(wdir)) as f:
+            extendedStopwords = f.readlines()
+        
+        for i in range(len(extendedStopwords)):
+            extendedStopwords[i] = extendedStopwords[i].replace('\n', '')
+        
+        
+        pollTimeSeconds = 180 # let it buffer 1 minute for every topic
         textBuffer = {}
         searchTerms = {}
         userBuffer = {}
         prevSentiment = {}
         previousPollTime = int(time.time())
         for message in self.consumer:
-            #Processes ~1700 per min. Estimate pollTimeSeconds based on this info
+            #Processes ~1700 per min. Estimate pollTimeSconds based on this info
             if message.topic == 'TwitterStream':
                 # print('Received packet from', message.value['topic'][0])
                 if message.value['topic'][0] == 'userTrack':
@@ -128,6 +135,8 @@ class masterConsumer(object):
                         self.createTables(message.value['topic'][0])
                         textBuffer[message.value['topic'][0]] = [text]
                         searchTerms[message.value['topic'][0]] = message.value['terms'] + ['amp'] #TODO: if search terms change a restart is required to reflect changes
+            # else:
+            #     print('im keeping up')
               
             currTime = int(time.time()) #Use int for database indexing purposes
     
@@ -170,9 +179,15 @@ class masterConsumer(object):
                     i = 0
                     keywordPacket = []
                     while i < len(vocab):
-                        if vocab[i][0] in searchTerms[topic] or vocab[i][0] == 'amp':
+                        if vocab[i][0] in searchTerms[topic] or vocab[i][0] in extendedStopwords:
                             vocab.pop(i)
                             continue #do NOT iterate i after a pop
+                        try:
+                            int(vocab[i][0]) # Number mess up the graph on the front end. Even when theyre cast as strings
+                            vocab.pop(i)
+                            continue
+                        except:
+                            pass
                         keywordPacket.append({'time': currTime,
                                               'word': vocab[i][0],
                                               'times_seen': vocab[i][1],
@@ -199,7 +214,7 @@ class masterConsumer(object):
                     #TODO: Why use many insert commands when one do trick?
                     for item in keywordPacket:
                         try:
-                            print(item)
+                            # print(item)
                             self.sqlInsert(topic, 'keyword', item)
                         except:
                             continue
