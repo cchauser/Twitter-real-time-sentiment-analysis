@@ -3,7 +3,7 @@
 This project uses:
 
 * Tweepy
-* Kafka (on your localmachine)
+* Kafka
 * Keras
 * Tensorflow
 * Dash
@@ -13,6 +13,9 @@ This project uses:
 
 This project has been launched! You can see it run at [chauser.me](chauser.me).
 
+Known Issues:
+* There is something funky going on with how it streams from twitter. You'll notice sudden dips and spikes in the activity which will continue for hours before spiking/dipping again. It seems to mainly affect the Trump topic. 
+
 
 You can find a quickstart guide to setting up Kafka [here](https://kafka.apache.org/quickstart). You'll need two topics. One called "TwitterStream" and one called "FrontEnd". You will also need a set of Twitter API keys that can be obtained [here](https://developer.twitter.com/en/docs/basics/getting-started). Save your keys in a txt file named 'twitterkeys.txt' with each key/token on a seperate line.
 
@@ -20,9 +23,7 @@ The neural network was trained using the [sentiment140](https://www.kaggle.com/k
 
 ### About this project
 
-The program reads a stream of tweets, replies, and mentions pertaining to a set of keywords or in response to tweets by specified Twitter accounts. TwitterStream.py then partially cleans the text before sending it to the master consumer using a Kafka stream. MasterConsumer.py then cleans the text further and preps it for analysis by a neural network and keyword extraction. Users that are followed have their tweets send to the frontend by the master consumer at this time as well.
-
-When the data reaches the front end (consisting of Dash and plotly) it is organized into pandas dataframes and graphed on a webpage.
+The program reads a stream of tweets, replies, and mentions pertaining to a set of keywords or in response to tweets by specified Twitter accounts. TwitterStream.py then partially cleans the text before sending it to the master consumer using a Kafka stream. MasterConsumer.py then cleans the text further and preps it for analysis by a neural network, keyword extraction, and analysis of users being followed. Once the consumer is done it uploads the data to a mySQL server. The front end then selects the data it wants from the SQL server and displays it on the dashboard.
 
 Below you can see an example of the end result when the program was used to analyze twitter for SpaceX's attempted launch on May 27th, 2020.
 
