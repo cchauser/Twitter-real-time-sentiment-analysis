@@ -11,7 +11,7 @@ This project uses:
 * NLTK
 * mySQL
 
-This project has been launched! You can see it run at [chauser.me](chauser.me).
+This project has been launched! You can see it run at [chauser.me](https://chauser.me).
 
 Known Issues:
 * There is something funky going on with how it streams from twitter. You'll notice sudden dips and spikes in the activity which will continue for hours before spiking/dipping again. It seems to mainly affect the Trump topic. 
