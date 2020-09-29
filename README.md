@@ -15,6 +15,7 @@ This project has been launched! You can see it run at [chauser.me](https://chaus
 
 Known Issues:
 * There is something funky going on with how it streams from twitter. You'll notice sudden dips and spikes in the activity which will continue for hours before spiking/dipping again. It seems to mainly affect the Trump topic. 
+* The keyword graph isn't updating. I won't be able to fix it until 7.
 
 
 You can find a quickstart guide to setting up Kafka [here](https://kafka.apache.org/quickstart). You'll need two topics. One called "TwitterStream" and one called "FrontEnd". You will also need a set of Twitter API keys that can be obtained [here](https://developer.twitter.com/en/docs/basics/getting-started). Save your keys in a txt file named 'twitterkeys.txt' with each key/token on a seperate line.
