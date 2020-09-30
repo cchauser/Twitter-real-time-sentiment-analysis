@@ -68,7 +68,7 @@ def getRecentTopics():
     for entry in cursor:
         if 'sentiment' not in entry[0]:
             continue
-        if (datetime.now() - entry[1]).seconds / 3600 < 12:
+        if (datetime.now() - entry[1]).seconds / 3600 < 1:
             topics.append(entry[0].split('_')[0])
     cnx.close()
     return topics
@@ -99,7 +99,7 @@ def sqlKeywordSelect(topic):
                          host = '127.0.0.1',
                          database = DATABASE)
     cursor = cnx.cursor()
-    rollingKeywordWindowSeconds = (60*30) # 30 minute window
+    rollingKeywordWindowSeconds = (60*15) # 15 minute window
     minTimeSelection = int(time.time()) - rollingKeywordWindowSeconds
     
     selectQuery = '''
@@ -118,8 +118,6 @@ def sqlKeywordSelect(topic):
         i += 1
         if i == 15:
             break
-#        wordArray.append(item[0])
-#        countArray.append(int(item[1]))
     cnx.close()
     container = container[::-1]
     df = pd.DataFrame(container, columns = ['word', 'times_seen', 'negative', 'positive', 'neutral'])
@@ -163,6 +161,7 @@ def sqlUserSelect(topic):
               [Input('interval-component', 'n_intervals'),
                Input('dropdown_selector', 'value')])
 def update_graph_live(n, ddValue):
+    timeArray = []
     try:
         if ddValue != None:
             timeSeries, sentiments = sqlSentimentSelect(ddValue)
@@ -273,7 +272,7 @@ def update_graph_live(n, ddValue):
                                     )
                                 ],
                                 'layout':{
-                                    'xaxis': {'title': {'text': 'Times seen in past 30 minutes'}},
+                                    'xaxis': {'title': {'text': 'Times seen in past 15 minutes'}},
                                     'yaxis': {'title': {'text': 'Keyword'}},
                                     
                                     'height': 343,
