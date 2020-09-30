@@ -10,7 +10,10 @@ from tweepy import Stream
 from tweepy.streaming import StreamListener
 from kafka import KafkaProducer
 from time import time, sleep
+from nltk import word_tokenize
+from nltk.corpus import stopwords
 import multiprocessing
+import string
 import json
 import os
 import re
@@ -29,6 +32,18 @@ access_secret= keys[3].replace('\n', '')
 httpRegex = "@\S+|https?:\S+|http?:\S|[^A-Za-z0-9]+"
 
 
+def removeStopWords(text):
+    tokenizedTweet = word_tokenize(text)
+    stopWords = stopwords.words('english')
+    newTweet = ''
+    for word in tokenizedTweet:
+        if word not in stopWords:
+            if word in string.punctuation:
+                newTweet = newTweet.strip() + word + ' '
+            else:
+                newTweet += word + ' '
+    return newTweet.strip()
+ 
 
 # we create this class that inherits from the StreamListener in tweepy StreamListener
 class TweetsListener(StreamListener):
@@ -74,6 +89,8 @@ class TweetsListener(StreamListener):
                     while '  ' in tweet:
                         tweet = tweet.replace('  ', ' ')
                         
+                    tweet = removeStopWords(tweet)
+                        
                     if len(tweet) < 3:
                         return True
                     
@@ -105,7 +122,7 @@ def startStream(keywords, users, filterwords = []):
     auth = OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_secret)
     
-    print(auth.oauth.verify)
+    print('Authorization successful: ', auth.oauth.verify)
     twitter_stream = Stream(auth, TweetsListener(keywords, users, filterwords))
     while True:
         try:
@@ -120,18 +137,22 @@ def startStream(keywords, users, filterwords = []):
 
 
 if __name__ == "__main__":
-    p = multiprocessing.Process(target = startStream, args=(['biden', 'kamala', 'joebiden'], ['939091'], ['joe']))
+    # p = multiprocessing.Process(target = startStream, args=(['biden', 'kamala', 'joebiden'], ['939091'], ['joe']))
+    # p.start()
+    # sleep(2)
+    p = multiprocessing.Process(target = startStream, args=(['heat', 'jimmy butler', 'herro'], ['11026952'], ['tyler', 'miami']))
     p.start()
     sleep(2)
-    c = multiprocessing.Process(target = startStream, args=(['trump', 'pence', 'realdonaldtrump'], ['25073877'], ['donald']))
-    c.start()
-    sleep(2)
+    # c = multiprocessing.Process(target = startStream, args=(['trump', 'pence', 'realdonaldtrump'], ['25073877'], ['donald']))
+    # c.start()
+    # sleep(2)
     # v = multiprocessing.Process(target = startStream, args=(['scotus', 'supreme court', 'barrett'], [], ['supreme', 'court', 'amy', 'coney', 'trump']))
     # v.start()
     # sleep(2)
-    startStream(['nba', 'basketball', 'basket ball'], ['19923144'])#, '759251', '1367531', '2836421', '2899773086'])
+    startStream(['lakers', 'lebron', 'anthony davis'], ['20346956'], ['james'])
+    # startStream(['trump', 'pence', 'realdonaldtrump'], ['25073877'], ['donald'])#, '759251', '1367531', '2836421', '2899773086'])
     p.join()
-    c.join()
+    # c.join()
     # v.join()
 #    b.join()
     

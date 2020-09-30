@@ -9,8 +9,6 @@ Created on Sat May  9 12:11:35 2020
 
 import json
 import time
-import string
-import nltk
 import sys
 import itertools
 import MySQLdb as mysql
@@ -19,8 +17,7 @@ import pickle
 from keras.models import load_model
 from tensorflow.python.keras.preprocessing.sequence import pad_sequences
 from kafka import KafkaConsumer
-from nltk.corpus import stopwords
-from nltk import word_tokenize
+from nltk import word_tokenize, FreqDist
 
 #You'll have to change your working directory if you run it on your own machine
 wdir = '/home/cullen'
@@ -54,20 +51,7 @@ class masterConsumer(object):
         self.__mysqlUser = keys[0].replace('\n', '')
         self.__mysqlPass = keys[1].replace('\n', '')
         self.DATABASE = DATABASE
-
-
-    def removeStopWords(self, text):
-        tokenizedTweet = word_tokenize(text)
-        stopWords = stopwords.words('english')
-        newTweet = ''
-        for word in tokenizedTweet:
-            if word not in stopWords:
-                if word in string.punctuation:
-                    newTweet = newTweet.strip() + word + ' '
-                else:
-                    newTweet += word + ' '
-        return newTweet.strip()
-    
+   
     
     #Calculates percentage change in activity and sentiment after a target user tweets
     #Then updates the SQL table
@@ -101,7 +85,6 @@ class masterConsumer(object):
         for i in range(len(extendedStopwords)):
             extendedStopwords[i] = extendedStopwords[i].replace('\n', '')
         
-        
         pollTimeSeconds = 180 # let it buffer 1 minute for every topic
         textBuffer = {}
         searchTerms = {}
@@ -127,7 +110,6 @@ class masterConsumer(object):
                     #This only occurs in the pollTimeSeconds window between consumer start up and the first batch being consumed
                 else:
                     text = message.value['tweet']
-                    text = self.removeStopWords(text)
                     #check if topic of stream is in the textbuffer already
                     if message.value['topic'][0] in textBuffer:
                         textBuffer[message.value['topic'][0]].append(text)
@@ -143,6 +125,8 @@ class masterConsumer(object):
             #Evaluate the buffer according to the pollTimeSeconds variable
             if currTime - previousPollTime >= pollTimeSeconds:
                 ### SENTIMENT
+                print('Consumption rate: ', self.consumer.metrics()['consumer-fetch-manager-metrics']['records-consumed-rate'])
+                print('Max lag: ', self.consumer.metrics()['consumer-fetch-manager-metrics']['records-lag-max'])
                 
                 for topic in textBuffer:
                     if len(textBuffer[topic]) == 0:
@@ -172,8 +156,8 @@ class masterConsumer(object):
                     
                     
                     ### WORD FREQUENCY
-                    allwords = [nltk.word_tokenize(comment) for comment in textBuffer[topic]]
-                    word_freq = nltk.FreqDist(itertools.chain(*allwords))
+                    allwords = [word_tokenize(comment) for comment in textBuffer[topic]]
+                    word_freq = FreqDist(itertools.chain(*allwords))
                     #Vocab is list of tuples: [(word, frequency), ...]
                     vocab = word_freq.most_common(50+len(searchTerms[topic])) # searchTerms will always be towards the top of the frequency distribution. This always returns top N non-search-terms
                     i = 0
@@ -183,7 +167,7 @@ class masterConsumer(object):
                             vocab.pop(i)
                             continue #do NOT iterate i after a pop
                         try:
-                            int(vocab[i][0]) # Number mess up the graph on the front end. Even when theyre cast as strings
+                            int(vocab[i][0]) # Numbers mess up the graph on the front end. Even when theyre cast as strings
                             vocab.pop(i)
                             continue
                         except:
@@ -194,19 +178,16 @@ class masterConsumer(object):
                                               'negative': 0,
                                               'positive': 0,
                                               'neutral': 0})
-                        i += 1
-                    
-                    
-
-                    for tweet in range(len(allwords)):
-                        for item in keywordPacket:
-                            if item['word'] in allwords[tweet]:
+                        
+                        for tweet in range(len(allwords)):
+                            if vocab[i][0] in allwords[tweet]:
                                 if p[tweet] < negativeThreshold:
-                                    item['negative'] += allwords[tweet].count(item['word'])
+                                    keywordPacket[-1]['negative'] += allwords[tweet].count(vocab[i][0])
                                 elif p[tweet] > positiveThreshold:
-                                    item['positive'] += allwords[tweet].count(item['word'])
+                                    keywordPacket[-1]['positive'] += allwords[tweet].count(vocab[i][0])
                                 else:
-                                    item['neutral'] += allwords[tweet].count(item['word'])
+                                    keywordPacket[-1]['neutral'] += allwords[tweet].count(vocab[i][0])
+                        i += 1
                         
                         
 
@@ -305,7 +286,7 @@ class masterConsumer(object):
                 CREATE TABLE {} (
                 time int(11) NOT NULL,
                 user varchar(15) NOT NULL,
-                tweet varchar(280) NOT NULL,
+                tweet varchar(350) NOT NULL,
                 deltasentiment int(11) NOT NULL,
                 deltaactivity int(11) NOT NULL,
                 PRIMARY KEY (time) ) 
