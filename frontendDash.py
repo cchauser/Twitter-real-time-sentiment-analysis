@@ -276,14 +276,14 @@ def update_graph_live(n, ddValue):
                                     'yaxis': {'title': {'text': 'Keyword'}},
                                     
                                     'height': 343,
-                                    'margin':{'t': 10, 'b': 30, 'r': 10},
-                                    'font': {'size': 12},
+                                    'margin':{'t': 25, 'b': 30, 'r': 10, 'l': 100},
+                                    'font': {'size': 13},
                                     'hovermode':'closest',
                                     'barmode': 'stack'
                                 }
                             }
                         )
-                    ], style={'width': '50%', 'display': 'inline-block', 'padding': '0 0 0 20'}),
+                    ], style={'width': '50%', 'display': 'inline-block', 'padding': '0 0 0 100'}),
                     html.Div([
                         dcc.Graph(
                             id = 'twitter-table',
