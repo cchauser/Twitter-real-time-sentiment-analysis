@@ -116,9 +116,8 @@ class masterConsumer(object):
                     else:
                         self.createTables(message.value['topic'][0])
                         textBuffer[message.value['topic'][0]] = [text]
-                        searchTerms[message.value['topic'][0]] = message.value['terms'] + ['amp'] #TODO: if search terms change a restart is required to reflect changes
-            # else:
-            #     print('im keeping up')
+                    searchTerms[message.value['topic'][0]] = message.value['terms'] + ['amp']
+
               
             currTime = int(time.time()) #Use int for database indexing purposes
     
@@ -224,6 +223,8 @@ class masterConsumer(object):
         #Table name schema topic_type (eg. nasa_sentiment)
         table = '{}_{}'.format(topic, dbType)
         
+        #Create the insert command dynamically based on the packet
+        #Packet is a dict, the dict key is the field name, the value at the dict key is the value... obviously
         insertCommand = 'INSERT INTO {} ('.format(table)
         for field in packet:
             insertCommand += '{}, '.format(field)
@@ -250,8 +251,10 @@ class masterConsumer(object):
         updateCommand = 'UPDATE {} SET '.format(table)
         for field in packet:
             updateCommand += '{0} = %({0})s, '.format(field)
+        # Where field uses key value to tell mySQL which entry to update
         updateCommand = updateCommand[0:-2] + ' WHERE {0} = %({0})s'.format(key[0])
         
+        #The key is a list. The first value is the name of the key field. The second value is the key to be updated
         packet[key[0]] = key[1] #Add key to packet so the cursor knows what to do with it
         
         cursor.execute(updateCommand, packet)
@@ -295,6 +298,7 @@ class masterConsumer(object):
         
         # It is against best practices to have shared primary keys (in this case time was going to be the PK)
         # So make word_index the PK but for all intents and purposes time is the filed being used to find records
+        # This will run out of primary keys 11,500 years from now! Find a better solution?
         TABLES[keywordTableName] = (
                 '''
                 CREATE TABLE {} (
@@ -318,9 +322,7 @@ class masterConsumer(object):
             except Exception as err:
                 print(err)
         cnx.close()
-                
         
-    #TODO: Prune table entries that are too old to preserve disk space??
 
 if __name__ == '__main__':
     while True:
