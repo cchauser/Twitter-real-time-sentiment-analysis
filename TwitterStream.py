@@ -123,8 +123,8 @@ def startStream(keywords, users, filterwords = []):
     auth.set_access_token(access_token, access_secret)
     
     print('Authorization successful: ', auth.oauth.verify)
-    twitter_stream = Stream(auth, TweetsListener(keywords, users, filterwords))
     while True:
+        twitter_stream = Stream(auth, TweetsListener(keywords, users, filterwords))
         try:
             twitter_stream.filter(languages = ['en'], track=keywords, follow = users) # start the stream
         except KeyboardInterrupt:
@@ -134,26 +134,26 @@ def startStream(keywords, users, filterwords = []):
             print(e)
             print("IM HERE")
             continue
+        finally:
+            # we do this because tweepy streams never actually clear their queued tweets when they stop/crash
+            # this way if something goes wrong we start fresh. We might lose some data but at least it'll keep running
+            del twitter_stream
 
 
 if __name__ == "__main__":
-    # p = multiprocessing.Process(target = startStream, args=(['biden', 'kamala', 'joebiden'], ['939091'], ['joe']))
-    # p.start()
-    # sleep(2)
+#    b = multiprocessing.Process(target = startStream, args=(['biden', 'kamala', 'joebiden'], ['939091'], ['joe']))
+#    b.start()
+#    sleep(2)
     p = multiprocessing.Process(target = startStream, args=(['heat', 'jimmy butler', 'herro'], ['11026952'], ['tyler', 'miami']))
     p.start()
     sleep(2)
-    # c = multiprocessing.Process(target = startStream, args=(['trump', 'pence', 'realdonaldtrump'], ['25073877'], ['donald']))
-    # c.start()
-    # sleep(2)
-    # v = multiprocessing.Process(target = startStream, args=(['scotus', 'supreme court', 'barrett'], [], ['supreme', 'court', 'amy', 'coney', 'trump']))
-    # v.start()
-    # sleep(2)
+#    v = multiprocessing.Process(target = startStream, args=(['scotus', 'supreme court', 'barrett'], [], ['supreme', 'court', 'amy', 'coney', 'trump']))
+#    v.start()
+#    sleep(2)
     startStream(['lakers', 'lebron', 'anthony davis'], ['20346956'], ['james'])
-    # startStream(['trump', 'pence', 'realdonaldtrump'], ['25073877'], ['donald'])#, '759251', '1367531', '2836421', '2899773086'])
+#    startStream(['trump', 'pence', 'realdonaldtrump'], ['25073877'], ['donald'])#, '759251', '1367531', '2836421', '2899773086'])
     p.join()
-    # c.join()
-    # v.join()
+#    v.join()
 #    b.join()
     
 #    TODO: Add a listener that will spawn a new stream on a new process.
