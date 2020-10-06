@@ -41,6 +41,8 @@ If you notice a large spike in any of the lines outside of normal trends it's pr
 
 The bar graph shows frequency of keywords that people are using in association with the keywords you're looking for.
 
+It also shows the amount of tweets with each sentiment that are using those keywords. So not only are you able to see what people are talking about you're able to see how they feel about each of those words!
+
 #### Table
 
 The only tweets that show up here are the tweets sent by the users being followed. You can change who is followed by editing the target_users variable in TwitterStream.py. *I'll add a better way to change it in the future*
