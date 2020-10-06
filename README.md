@@ -23,7 +23,7 @@ The program reads a stream of tweets, replies, and mentions pertaining to a set 
 
 This is what the website looks like if you're unable to visit it for some reason:
 
-![Website dashboard](https://github.com/cchauser/Twitter-real-time-sentiment-analysis/blob/master/chauser-2020-10-06 18-40-22.png)
+![Website dashboard](https://github.com/cchauser/Twitter-real-time-sentiment-analysis/blob/master/chauser_2020-10-06_18-40-22.png)
 
 It's important to keep in mind that just because some tweets are labelled as negative does not mean they are hateful of the given topic. They may be expressing disappointment or sadness which the neural network considers to be a negative sentiment.
 
