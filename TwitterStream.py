@@ -100,8 +100,8 @@ class TweetsListener(StreamListener):
                     self.producer.send('TwitterStream', value=packet)
             return True
         except Exception as e:
-            pass
-            # print("Error on_data: %s" % str(e))
+            # pass
+            print("Error on_data: %s" % str(e))
         return True
 
     def if_error(self, status):
@@ -123,6 +123,8 @@ def startStream(keywords, users, filterwords = []):
     auth.set_access_token(access_token, access_secret)
     
     print('Authorization successful: ', auth.oauth.verify)
+    
+    
     while True:
         twitter_stream = Stream(auth, TweetsListener(keywords, users, filterwords))
         try:
@@ -144,13 +146,13 @@ if __name__ == "__main__":
 #    b = multiprocessing.Process(target = startStream, args=(['biden', 'kamala', 'joebiden'], ['939091'], ['joe']))
 #    b.start()
 #    sleep(2)
-    p = multiprocessing.Process(target = startStream, args=(['heat', 'jimmy butler', 'herro'], ['11026952'], ['tyler', 'miami']))
+    p = multiprocessing.Process(target = startStream, args=(['heat', 'jimmy butler', 'herro'], ['11026952'], ['jimmy', 'butler', 'tyler', 'miami']))
     p.start()
     sleep(2)
 #    v = multiprocessing.Process(target = startStream, args=(['scotus', 'supreme court', 'barrett'], [], ['supreme', 'court', 'amy', 'coney', 'trump']))
 #    v.start()
 #    sleep(2)
-    startStream(['lakers', 'lebron', 'anthony davis'], ['20346956'], ['james'])
+    startStream(['lakers', 'lebron', 'anthony davis'], ['20346956'], ['james', 'anthony', 'davis'])
 #    startStream(['trump', 'pence', 'realdonaldtrump'], ['25073877'], ['donald'])#, '759251', '1367531', '2836421', '2899773086'])
     p.join()
 #    v.join()

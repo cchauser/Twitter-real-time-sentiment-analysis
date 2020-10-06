@@ -336,7 +336,7 @@ dApp.layout = html.Div(children = [
         html.Div([html.Div(children = 'Topic:')], style={'width': '5%', 'display': 'inline-block', 'padding': '0 0 0 20', 'margin-right': -40, 'vertical-align': 13}),
         html.Div([html.Div(id = 'dropdown', children = dropdown)], style={'width': '15%', 'display': 'inline-block', 'padding': '0 0 0 20', 'margin-right': 150}),
         html.Div([html.Div(id = 'since-update')], style = {'width': '30%', 'display': 'inline-block'}),
-        html.Div(id = 'live-graph'),
+        html.Div(id = 'live-graph', children = html.H1('Fetching graphs. This may take a few seconds!')),
         
         
         dcc.Interval(id = 'interval-component',
