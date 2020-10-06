@@ -21,13 +21,9 @@ The neural network was trained using the [sentiment140](https://www.kaggle.com/k
 
 The program reads a stream of tweets, replies, and mentions pertaining to a set of keywords or in response to tweets by specified Twitter accounts. TwitterStream.py then partially cleans the text before sending it to the master consumer using a Kafka stream. MasterConsumer.py then cleans the text further and preps it for analysis by a neural network, keyword extraction, and analysis of users being followed. Once the consumer is done it uploads the data to a mySQL server. The front end then selects the data it wants from the SQL server and displays it on the dashboard.
 
-Below you can see an example of the end result when the program was used to analyze twitter for SpaceX's attempted launch on May 27th, 2020.
+This is what the website looks like if you're unable to visit it for some reason:
 
-![Graphing dashboard for SpaceX launch](https://github.com/cchauser/Twitter-real-time-sentiment-analysis/blob/master/spacexlaunch-V0614.png)
-
-You can also see where certain events occured during the course of the attempted launch:
-
-![Timeline of events](https://github.com/cchauser/Twitter-real-time-sentiment-analysis/blob/master/spacexlaunch.png)
+![Website dashboard](https://github.com/cchauser/Twitter-real-time-sentiment-analysis/blob/master/chauser-2020-10-06 18-40-22.png)
 
 It's important to keep in mind that just because some tweets are labelled as negative does not mean they are hateful of the given topic. They may be expressing disappointment or sadness which the neural network considers to be a negative sentiment.
 
