@@ -146,7 +146,7 @@ if __name__ == "__main__":
 #    b = multiprocessing.Process(target = startStream, args=(['biden', 'kamala', 'joebiden'], ['939091'], ['joe']))
 #    b.start()
 #    sleep(2)
-    p = multiprocessing.Process(target = startStream, args=(['heat', 'jimmy butler', 'herro'], ['11026952'], ['jimmy', 'butler', 'tyler', 'miami']))
+    p = multiprocessing.Process(target = startStream, args=(['heat', 'jimmy butler', 'herro', 'adebayo'], ['11026952'], ['jimmy', 'butler', 'tyler', 'miami', 'bam']))
     p.start()
     sleep(2)
 #    v = multiprocessing.Process(target = startStream, args=(['scotus', 'supreme court', 'barrett'], [], ['supreme', 'court', 'amy', 'coney', 'trump']))

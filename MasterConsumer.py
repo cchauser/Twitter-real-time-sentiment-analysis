@@ -74,7 +74,7 @@ class masterConsumer(object):
                 self.sqlUpdate(topic, 'user', key, updatePacket)
                 
                 #Stop updating the sentiment and activity change after a set amount of time.
-                if int(time.time()) - tweet[0]['time'] > 420:
+                if int(time.time()) - tweet[0]['time'] > 300:
                     userBuffer[topic].remove(tweet)
                 
     
