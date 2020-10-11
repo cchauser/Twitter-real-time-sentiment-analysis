@@ -12,7 +12,8 @@ from kafka import KafkaProducer
 from time import time, sleep
 from nltk import word_tokenize
 from nltk.corpus import stopwords
-import multiprocessing
+from configparser import ConfigParser
+from multiprocessing import Process, Pipe
 import string
 import json
 import os
@@ -32,6 +33,32 @@ access_secret= keys[3].replace('\n', '')
 httpRegex = "@\S+|https?:\S+|http?:\S|[^A-Za-z0-9]+"
 
 
+def determineTopic(topicDict, tweet, childPipe):
+    tweetTopics = []
+    for topic, data in topicDict.items():
+        # Data[0] is the keywords
+        # Data[1] is user strings
+        # Data[2] is filter words
+        if tweet['user']['id_str'] in data[1]:
+            childPipe.send(topic)
+        try:
+            if tweet['in_reply_to_user_id_str'] in data[1]:
+                tweetTopics.append(topic)
+                continue
+        except KeyError:
+            pass
+        
+        if bool(tweet['truncated']):
+            tweetText = tweet['extended_tweet']['full_text']
+        else:
+            tweetText = tweet['text']
+        tweetText = word_tokenize(tweetText.lower())
+        if len(data[0].intersection(set(tweetText))) > 0:
+            tweetTopics.append(topic)
+    childPipe.send(tweetTopics)
+    return True
+                
+
 def removeStopWords(text):
     tokenizedTweet = word_tokenize(text)
     stopWords = stopwords.words('english')
@@ -43,41 +70,48 @@ def removeStopWords(text):
             else:
                 newTweet += word + ' '
     return newTweet.strip()
- 
+
 
 # we create this class that inherits from the StreamListener in tweepy StreamListener
 class TweetsListener(StreamListener):
     
-    def __init__(self, keywordArg, userArg, filterwords):
+    def __init__(self, topicDict, userArg):
+        self.topicDict = topicDict
         self.userArg = userArg
-        self.keywordArg = keywordArg + filterwords
         self.producer = KafkaProducer(bootstrap_servers=os.environ.get('KAFKA_HOST', 'localhost:9092'),
                              value_serializer = lambda x: json.dumps(x).encode('utf-8'),
                              batch_size = 0)
-        self.topic = keywordArg[0]
+        self.parentPipe, self.childPipe = Pipe()
         
         
     # we override the on_data() function in StreamListener
     def on_data(self, data):
+        message = json.loads(data)
+        if 'limit' in message:
+            return True
         try:
-            message = json.loads(data)
             if 'retweeted_status' in message:
                 return True
             else:
+                topicProcess = Process(target = determineTopic, args=[self.topicDict, message, self.childPipe])
+                topicProcess.start()
+                
                 #Twitter clips off long tweets and flags as truncated then moves them to an extended tweet section in the json
-                if message['truncated']:
+                if bool(message['truncated']):
                     tweet = message['extended_tweet']['full_text']
                 else:
                     tweet = message['text']
-                    
-                    
+
                 if message['user']['id_str'] in self.userArg:
                     tweet = tweet.encode('ASCII', 'ignore').decode() #Removes emojis
                     while '  ' in tweet:
                         tweet = tweet.replace('  ', ' ')
+                        
+                    topics = self.parentPipe.recv()
+                    topicProcess.join()
                     
                     print(tweet, message['user']['screen_name'])
-                    packet = {'topic': ['userTrack', self.topic], 'time': int(time()), 'user': message['user']['screen_name'], 'tweet': tweet}
+                    packet = {'topic': ['userTrack', topics], 'time': int(time()), 'user': message['user']['screen_name'], 'tweet': tweet}
                     self.producer.send('TwitterStream', value=packet)
                 else:
                     tweet = tweet.lower()
@@ -90,18 +124,23 @@ class TweetsListener(StreamListener):
                         tweet = tweet.replace('  ', ' ')
                         
                     tweet = removeStopWords(tweet)
-                        
+                    
+                    topicProcess.join()
+                    topics = self.parentPipe.recv()
+                    
                     if len(tweet) < 3:
                         return True
-                    
-                    
-                    # print(self.topic)
-                    packet = {'topic': [self.topic], 'tweet': tweet, 'terms': self.keywordArg}
-                    self.producer.send('TwitterStream', value=packet)
+                    elif len(topics) == 0:
+                        return True
+
+                    for topic in topics:
+                        packet = {'topic': [topic], 'tweet': tweet, 'terms': list(self.topicDict[topic][0])}
+                        self.producer.send('TwitterStream', value=packet)
             return True
         except Exception as e:
-            # pass
+#             pass
             print("Error on_data: %s" % str(e))
+            print(message)
         return True
 
     def if_error(self, status):
@@ -117,7 +156,7 @@ class TweetsListener(StreamListener):
 # the keyword graph and are also too common to search for individually. For example if you want results on Joe Biden
 # you'll have the stream listen for 'biden' but not joe since that's too common, then filterwords will include 'joe'
 # 'joe' is going to appear with 'biden' often.
-def startStream(keywords, users, filterwords = []):
+def startStream(topicDict, keywords, users):
     print('Starting stream using', keywords)
     auth = OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_secret)
@@ -126,7 +165,7 @@ def startStream(keywords, users, filterwords = []):
     
     
     while True:
-        twitter_stream = Stream(auth, TweetsListener(keywords, users, filterwords))
+        twitter_stream = Stream(auth, TweetsListener(topicDict, users))
         try:
             twitter_stream.filter(languages = ['en'], track=keywords, follow = users) # start the stream
         except KeyboardInterrupt:
@@ -141,22 +180,28 @@ def startStream(keywords, users, filterwords = []):
             # this way if something goes wrong we start fresh. We might lose some data but at least it'll keep running
             del twitter_stream
 
+def loadStreamConfig(file):
+    config = ConfigParser()
+    config.read(file)
+    topics = config.sections()
+    keywords, users = [], []
+    topicDict = {}
+    for topic in topics:
+        kw = config[topic]['keywords'].split(',')
+        usr = config[topic]['users'].split(',')
+        fwords = config[topic]['filter'].split(',')
+        keywords += kw
+        users += usr
+        topicDict[topic] = [set(kw+fwords), usr]
+    return topicDict, keywords, users
+
+
+
 
 if __name__ == "__main__":
-#    b = multiprocessing.Process(target = startStream, args=(['biden', 'kamala', 'joebiden'], ['939091'], ['joe']))
-#    b.start()
-#    sleep(2)
-    p = multiprocessing.Process(target = startStream, args=(['heat', 'jimmy butler', 'herro', 'adebayo'], ['11026952'], ['jimmy', 'butler', 'tyler', 'miami', 'bam']))
-    p.start()
-    sleep(2)
-#    v = multiprocessing.Process(target = startStream, args=(['scotus', 'supreme court', 'barrett'], [], ['supreme', 'court', 'amy', 'coney', 'trump']))
-#    v.start()
-#    sleep(2)
-    startStream(['lakers', 'lebron', 'anthony davis'], ['20346956'], ['james', 'anthony', 'davis'])
-#    startStream(['trump', 'pence', 'realdonaldtrump'], ['25073877'], ['donald'])#, '759251', '1367531', '2836421', '2899773086'])
-    p.join()
-#    v.join()
-#    b.join()
+    d, kw, usr = loadStreamConfig('streamConfig.ini')
+    
+    startStream(d, kw, usr)
     
 #    TODO: Add a listener that will spawn a new stream on a new process.
         

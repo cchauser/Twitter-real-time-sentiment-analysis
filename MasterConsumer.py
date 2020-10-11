@@ -11,6 +11,7 @@ import json
 import time
 import sys
 import itertools
+import multiprocessing as mp
 import MySQLdb as mysql
 
 import pickle
@@ -92,7 +93,6 @@ class masterConsumer(object):
         prevSentiment = {}
         previousPollTime = int(time.time())
         for message in self.consumer:
-            #Processes ~1700 per min. Estimate pollTimeSconds based on this info
             if message.topic == 'TwitterStream':
                 # print('Received packet from', message.value['topic'][0])
                 if message.value['topic'][0] == 'userTrack':
@@ -126,11 +126,12 @@ class masterConsumer(object):
                 ### SENTIMENT
                 print('Consumption rate: ', self.consumer.metrics()['consumer-fetch-manager-metrics']['records-consumed-rate'])
                 print('Max lag: ', self.consumer.metrics()['consumer-fetch-manager-metrics']['records-lag-max'])
-                
+                processList = []
                 for topic in textBuffer:
                     if len(textBuffer[topic]) == 0:
+                        textBuffer.pop(topic, None)
                         continue
-                    #TODO: Multiprocess/thread this with mutexes. When there get to be a lot of streams it WILL fall behind
+                    #TODO: Add a process checker to make sure none of the processes are hanging
                     
                     
                     #Pads and tokenizes tweets for input into the model. Padding value is 0 by default
@@ -140,18 +141,17 @@ class masterConsumer(object):
                     inputTweets = pad_sequences(self.tokenizer.texts_to_sequences(textBuffer[topic]), padding='pre', maxlen=70)
                     p = self.model.predict(inputTweets)
                     
-                    positiveThreshold = .6
-                    negativeThreshold = .4
-                    
                     #Querying a numpy array for truth values returns an array of booleans which can be interpreted as 1's and 0's. Hence the sum call
-                    numPositive = int(sum(p > positiveThreshold)[0]) #Transform to int for data consumption purposes
-                    numNegative = int(sum(p < negativeThreshold)[0])
+                    numPositive = int(sum(p > .6)[0]) #Transform to int for data consumption purposes
+                    numNegative = int(sum(p < .4)[0])
                     numNeutral = len(textBuffer[topic]) - (numPositive + numNegative)
                     
                     sentimentPacket = {'time': currTime,'negative': numNegative, 'positive': numPositive, 'neutral': numNeutral}
                     prevSentiment[topic] = sentimentPacket
                     print(topic, len(inputTweets), sentimentPacket)
-                    self.sqlInsert(topic, 'sentiment', sentimentPacket)
+                    sentProcess = mp.Process(target = self.sqlInsert, args = [topic, 'sentiment', sentimentPacket])
+                    sentProcess.start()
+                    processList.append(sentProcess)
                     
                     
                     ### WORD FREQUENCY
@@ -180,35 +180,35 @@ class masterConsumer(object):
                         
                         for tweet in range(len(allwords)):
                             if vocab[i][0] in allwords[tweet]:
-                                if p[tweet] < negativeThreshold:
+                                if p[tweet] < .4:
                                     keywordPacket[-1]['negative'] += allwords[tweet].count(vocab[i][0])
-                                elif p[tweet] > positiveThreshold:
+                                elif p[tweet] > .6:
                                     keywordPacket[-1]['positive'] += allwords[tweet].count(vocab[i][0])
                                 else:
                                     keywordPacket[-1]['neutral'] += allwords[tweet].count(vocab[i][0])
                         i += 1
-                        
-                        
 
-                        
-                    #TODO: Why use many insert commands when one do trick?
-                    for item in keywordPacket:
-                        try:
-                            # print(item)
-                            self.sqlInsert(topic, 'keyword', item)
-                        except:
-                            continue
-                        
+                    kwProcess = mp.Process(target = self.keywordInsertProcess, args = [currTime, topic, keywordPacket])
+                    kwProcess.start()
+                    processList.append(kwProcess)
+
                     textBuffer[topic].clear()
-                
+                    
                 self.calculateSentimentChange(prevSentiment, userBuffer)
+                for process in processList:
+                    process.join()
+                    
                 
                 print('processed {0} topics in {1:.2f} seconds\n'.format(len(textBuffer), time.time()-currTime))
-                
-                
-                
-                ### DON'T FORGET TO RESET YOUR BUFFER!
+
                 previousPollTime = currTime
+
+    def keywordInsertProcess(self, currTime, topic, keywordPacket):
+        for item in keywordPacket:
+            try:
+                self.sqlInsert(topic, 'keyword', item)
+            except:
+                continue
         
         
     #Topic will be the topic of the twitter stream the packet data was created from
