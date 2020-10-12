@@ -126,6 +126,8 @@ class masterConsumer(object):
                 ### SENTIMENT
                 print('Consumption rate: ', self.consumer.metrics()['consumer-fetch-manager-metrics']['records-consumed-rate'])
                 print('Max lag: ', self.consumer.metrics()['consumer-fetch-manager-metrics']['records-lag-max'])
+                
+                # processList is a container where we'll put all of the new processes that we spawn so we can keep track of them
                 processList = []
                 for topic in textBuffer:
                     if len(textBuffer[topic]) == 0:
@@ -149,6 +151,8 @@ class masterConsumer(object):
                     sentimentPacket = {'time': currTime,'negative': numNegative, 'positive': numPositive, 'neutral': numNeutral}
                     prevSentiment[topic] = sentimentPacket
                     print(topic, len(inputTweets), sentimentPacket)
+                    
+                    #Spawn a new process to insert the sentiment into the SQL table then put it in the process array
                     sentProcess = mp.Process(target = self.sqlInsert, args = [topic, 'sentiment', sentimentPacket])
                     sentProcess.start()
                     processList.append(sentProcess)
@@ -167,7 +171,7 @@ class masterConsumer(object):
                             continue #do NOT iterate i after a pop
                         try:
                             int(vocab[i][0]) # Numbers mess up the graph on the front end. Even when theyre cast as strings
-                            vocab.pop(i)
+                            vocab.pop(i) # So we pop them out and continue on our way
                             continue
                         except:
                             pass
@@ -177,7 +181,7 @@ class masterConsumer(object):
                                               'negative': 0,
                                               'positive': 0,
                                               'neutral': 0})
-                        
+                        #This handles the determination of how many times a keyword is used in a positive, negative, or neutral context
                         for tweet in range(len(allwords)):
                             if vocab[i][0] in allwords[tweet]:
                                 if p[tweet] < .4:
@@ -188,6 +192,7 @@ class masterConsumer(object):
                                     keywordPacket[-1]['neutral'] += allwords[tweet].count(vocab[i][0])
                         i += 1
 
+                    #Spawn a new process to insert all of the keywords into the SQL table then add it to process array
                     kwProcess = mp.Process(target = self.keywordInsertProcess, args = [currTime, topic, keywordPacket])
                     kwProcess.start()
                     processList.append(kwProcess)
@@ -195,9 +200,13 @@ class masterConsumer(object):
                     textBuffer[topic].clear()
                     
                 self.calculateSentimentChange(prevSentiment, userBuffer)
+                
+                #Iterate through the processList and join them back to the parent process (this one)
+                #Join tells the parent process to wait for the child to finish what it's doing then end it
+                #The processes spawned first will likely already be done but we'll have to wait for those at the end
+                #While waiting for some processes to finish the ones later in the list will continue to work!
                 for process in processList:
                     process.join()
-                    
                 
                 print('processed {0} topics in {1:.2f} seconds\n'.format(len(textBuffer), time.time()-currTime))
 
@@ -251,7 +260,7 @@ class masterConsumer(object):
         updateCommand = 'UPDATE {} SET '.format(table)
         for field in packet:
             updateCommand += '{0} = %({0})s, '.format(field)
-        # Where field uses key value to tell mySQL which entry to update
+        # Don't forget to tell it which entry to update! That's what passing a key field to the function is for
         updateCommand = updateCommand[0:-2] + ' WHERE {0} = %({0})s'.format(key[0])
         
         #The key is a list. The first value is the name of the key field. The second value is the key to be updated

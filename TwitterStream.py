@@ -39,8 +39,13 @@ def determineTopic(topicDict, tweet, childPipe):
         # Data[0] is the keywords
         # Data[1] is user strings
         # Data[2] is filter words
+        
+        #Check if the tweet came from a followed user
         if tweet['user']['id_str'] in data[1]:
             childPipe.send(topic)
+            return True
+        
+        #Check if the tweet is a reply to a followed user
         try:
             if tweet['in_reply_to_user_id_str'] in data[1]:
                 tweetTopics.append(topic)
@@ -48,11 +53,14 @@ def determineTopic(topicDict, tweet, childPipe):
         except KeyError:
             pass
         
+        #Get full text of the tweet so that we can check keywords
         if bool(tweet['truncated']):
             tweetText = tweet['extended_tweet']['full_text']
         else:
             tweetText = tweet['text']
+            
         tweetText = word_tokenize(tweetText.lower())
+        # Set intersection is faster (?) than iterating and comparing
         if len(data[0].intersection(set(tweetText))) > 0:
             tweetTopics.append(topic)
     childPipe.send(tweetTopics)
@@ -93,6 +101,7 @@ class TweetsListener(StreamListener):
             if 'retweeted_status' in message:
                 return True
             else:
+                #Spawn the topic determining process ASAP. We wanna give it as much time as possible
                 topicProcess = Process(target = determineTopic, args=[self.topicDict, message, self.childPipe])
                 topicProcess.start()
                 
@@ -106,9 +115,10 @@ class TweetsListener(StreamListener):
                     tweet = tweet.encode('ASCII', 'ignore').decode() #Removes emojis
                     while '  ' in tweet:
                         tweet = tweet.replace('  ', ' ')
-                        
-                    topics = self.parentPipe.recv()
+                                  
+                    #Wait for topicProcess to finish then get the topic from the pipe
                     topicProcess.join()
+                    topics = self.parentPipe.recv()
                     
                     print(tweet, message['user']['screen_name'])
                     packet = {'topic': ['userTrack', topics], 'time': int(time()), 'user': message['user']['screen_name'], 'tweet': tweet}
@@ -125,13 +135,14 @@ class TweetsListener(StreamListener):
                         
                     tweet = removeStopWords(tweet)
                     
+                    #Wait for topicProcess to finish then get the topic from the pipe
                     topicProcess.join()
                     topics = self.parentPipe.recv()
                     
                     if len(tweet) < 3:
                         return True
                     elif len(topics) == 0:
-                        return True
+                        return True #TODO: Sometimes the determineTopic function doesn't find any topics?
 
                     for topic in topics:
                         packet = {'topic': [topic], 'tweet': tweet, 'terms': list(self.topicDict[topic][0])}
@@ -152,17 +163,13 @@ class TweetsListener(StreamListener):
         return True
 
 
-# Filter words are common words associated with what you're searching for but are so common they're going to skew
-# the keyword graph and are also too common to search for individually. For example if you want results on Joe Biden
-# you'll have the stream listen for 'biden' but not joe since that's too common, then filterwords will include 'joe'
-# 'joe' is going to appear with 'biden' often.
+
 def startStream(topicDict, keywords, users):
     print('Starting stream using', keywords)
     auth = OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_secret)
     
     print('Authorization successful: ', auth.oauth.verify)
-    
     
     while True:
         twitter_stream = Stream(auth, TweetsListener(topicDict, users))
@@ -180,6 +187,8 @@ def startStream(topicDict, keywords, users):
             # this way if something goes wrong we start fresh. We might lose some data but at least it'll keep running
             del twitter_stream
 
+# Loads the .ini file so which contains the keywords and users for the stream to follow
+# The .ini file is easy to modify, just follow the examples already in there
 def loadStreamConfig(file):
     config = ConfigParser()
     config.read(file)
@@ -189,6 +198,11 @@ def loadStreamConfig(file):
     for topic in topics:
         kw = config[topic]['keywords'].split(',')
         usr = config[topic]['users'].split(',')
+        # Filter words are common words associated with what you're searching for but are so common they're going to skew
+        # the keyword graph and are also too common to search for individually. For example if you want results on Joe Biden
+        # you'll have the stream listen for 'biden' but not joe since that's too common, then filterwords will include 'joe'
+        # 'joe' is going to appear with 'biden' often.
+        # Do NOT use filter words that are also keywords for other topics!
         fwords = config[topic]['filter'].split(',')
         keywords += kw
         users += usr
