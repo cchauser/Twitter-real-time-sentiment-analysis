@@ -12,7 +12,7 @@ This project uses:
 * mySQL
 
 Known Issues:
-* Joe Biden hasn't been tweeting in english according to Twitter so the stream isn't able to collect his tweets. His tweets have classified at being in 'und' language.
+* Joe Biden hasn't been tweeting in english according to Twitter so the stream isn't able to collect his tweets. His tweets have classified as being in 'und' language.
 
 This project has been launched! You can see it run at [chauser.me](https://chauser.me).
 
