@@ -12,7 +12,7 @@ This project uses:
 * mySQL
 
 Known Issues:
-* Joe Biden's twitter language has been set to 'und' (undefined). As such none of his tweets will appear in the Tweet table. There is no way to fix this besides hoping that Joe Biden will tell Twitter that he can speak English.
+* Joe Biden hasn't been tweeting in english according to Twitter so the stream isn't able to collect his tweets. His tweets have classified at being in 'und' language.
 
 This project has been launched! You can see it run at [chauser.me](https://chauser.me).
 
