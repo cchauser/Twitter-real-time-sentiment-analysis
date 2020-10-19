@@ -11,6 +11,9 @@ This project uses:
 * NLTK
 * mySQL
 
+Known Issues:
+* Joe Biden's twitter language has been set to 'und' (undefined). As such none of his tweets will appear in the Tweet table. There is no way to fix this besides hoping that Joe Biden will tell Twitter that he can speak English.
+
 This project has been launched! You can see it run at [chauser.me](https://chauser.me).
 
 You can find a quickstart guide to setting up Kafka [here](https://kafka.apache.org/quickstart). You'll need two topics. One called "TwitterStream" and one called "FrontEnd". You will also need a set of Twitter API keys that can be obtained [here](https://developer.twitter.com/en/docs/basics/getting-started). Save your keys in a txt file named 'twitterkeys.txt' with each key/token on a seperate line.
