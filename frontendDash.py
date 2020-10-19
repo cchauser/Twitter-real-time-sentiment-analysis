@@ -79,7 +79,7 @@ def sqlSentimentSelect(topic):
                          host = '127.0.0.1',
                          database = DATABASE)
     cursor = cnx.cursor()
-    dayAgoSeconds = int(time.time()) - 86400
+    dayAgoSeconds = int(time.time()) - 43200#86400
     selectQuery = '''SELECT time, negative, positive, neutral FROM {0}_sentiment
                         WHERE time > {1}'''.format(topic, dayAgoSeconds)
                         
@@ -99,7 +99,7 @@ def sqlKeywordSelect(topic):
                          host = '127.0.0.1',
                          database = DATABASE)
     cursor = cnx.cursor()
-    rollingKeywordWindowSeconds = (60*15) # 15 minute window
+    rollingKeywordWindowSeconds = (60*30) # 30 minute window
     minTimeSelection = int(time.time()) - rollingKeywordWindowSeconds
     
     selectQuery = '''
@@ -122,6 +122,33 @@ def sqlKeywordSelect(topic):
     container = container[::-1]
     df = pd.DataFrame(container, columns = ['word', 'times_seen', 'negative', 'positive', 'neutral'])
     return df
+
+def sqlLocationSelect(topic):
+    cnx = mysql.connect(user = mysqlUser, 
+                         password = mysqlPass, 
+                         host = '127.0.0.1',
+                         database = DATABASE)
+    cursor = cnx.cursor()
+    rollingKeywordWindowSeconds = (60*30) # 30 minute window
+    minTimeSelection = int(time.time()) - rollingKeywordWindowSeconds
+    
+    selectQuery = '''
+                    SELECT location, AVG(sentiment) as s, SUM(times_seen) as t
+                    FROM {0}_location
+                    WHERE time > {1}
+                    GROUP BY location
+                  '''.format(topic, minTimeSelection)
+    
+    cursor.execute(selectQuery)
+    container = []
+    for item in cursor:
+        item = list(item)
+        item[2] = 'Number of Tweets: {}'.format(item[2])
+        container.append(item)
+        
+    cnx.close()
+    df = pd.DataFrame(container, columns = ['location', 'sentiment', 'text'])
+    return df
     
 def sqlUserSelect(topic):
     cnx = mysql.connect(user = mysqlUser, 
@@ -130,7 +157,7 @@ def sqlUserSelect(topic):
                          database = DATABASE)
     cursor = cnx.cursor()
     
-    dayAgoSeconds = int(time.time()) - 86400
+    dayAgoSeconds = int(time.time()) - 43200#86400
     selectQuery = '''
                   SELECT time, user, tweet, deltasentiment, deltaactivity
                   FROM {0}_user
@@ -165,8 +192,9 @@ def update_graph_live(n, ddValue):
     try:
         if ddValue != None:
             timeSeries, sentiments = sqlSentimentSelect(ddValue)
-            df = sqlKeywordSelect(ddValue)
+            keywordDF = sqlKeywordSelect(ddValue)
             timeArray, userArray, tweetArray, dSentArray, dActArray = sqlUserSelect(ddValue)
+            locationDF = sqlLocationSelect(ddValue)
         else:
             timeSeries = []
             sentiments = np.asarray([[0,0,0]])
@@ -176,7 +204,8 @@ def update_graph_live(n, ddValue):
     finally:
         red = '#FF3E30'
         blue = '#176BEF'
-        green = 'rgb(23,175,82)'
+        green = '#17AF51'
+        mapColorScale = [[0, red], [0.5, blue], [1.0, green]]
         if len(timeArray) > 1:
             tableColor = tableColors(len(timeArray))
         else:
@@ -224,6 +253,7 @@ def update_graph_live(n, ddValue):
                                     )
                                 ],
                                 'layout':{
+                                        'title': 'Sentiment over Time',
                                         'xaxis': {'rangeselector': {'buttons': [{'count': 1,
                                                                                  'label': '1h',
                                                                                  'step': 'hour',
@@ -232,47 +262,66 @@ def update_graph_live(n, ddValue):
                                                                                  'label': '8h',
                                                                                  'step': 'hour',
                                                                                  'stepmode': 'backward'},
-                                                                                {'count': 12,
-                                                                                 'label': '12h',
-                                                                                 'step': 'hour',
-                                                                                 'stepmode': 'backward'},
                                                                                 {'step': 'all',
-                                                                                 'label': '24h'}]}},
+                                                                                 'label': '12h'}]}},
                                         'yaxis': {'title': {'text': 'Number of Mentions'}},
-                                        'margin':{'b': 40, 't': 30}
+                                        'margin':{'b': 40, 't': 30, 'r':20}
                                         }
                             }
                         )
-                    ], style={'width': '100%', 'display': 'inline-block', 'padding': '0 0 0 20'}),
+                    ], style={'width': '70%', 'display': 'inline-block', 'padding': '0 0 0 20'}),
+                    html.Div([
+                            dcc.Graph(
+                                id = 'sentiment-map',
+                                figure={
+                                    'data': [go.Choropleth(
+                                        locations = locationDF['location'],
+                                        z = locationDF['sentiment'],
+                                        locationmode = 'USA-states',
+                                        text = locationDF['text'],
+                                        colorscale = mapColorScale,
+                                        zmax = .7,
+                                        zmin = .3,
+#                                        colorbar_title = 'Sentiment',
+                                        showscale=False
+                                    )],
+                                    'layout':{
+                                            'geo': {'scope': 'usa'},
+                                            'margin':{'l':5, 'r':5, 't': 60, 'b': 20},
+                                            'title': 'Sentiment by State\n(past 30 minutes)'
+                                    }
+                                }
+                            )
+                    ], style={'width': '30%', 'display': 'inline-block', 'padding': '0 0 0 20'}),
                     html.Div([
                         dcc.Graph(
                             id = 'keyword-bar-graph',
                             figure={
                                 'data': [
                                     go.Bar(
-                                        y = df['word'],
-                                        x = df['negative'],
+                                        y = keywordDF['word'],
+                                        x = keywordDF['negative'],
                                         name = 'Negative',
                                         orientation = 'h',
                                         marker = dict(color  = red)
                                     ),
                                     go.Bar(
-                                        y = df['word'],
-                                        x = df['neutral'],
+                                        y = keywordDF['word'],
+                                        x = keywordDF['neutral'],
                                         name = 'Neutral',
                                         orientation = 'h',
                                         marker = dict(color  = blue)
                                     ),
                                     go.Bar(
-                                        y = df['word'],
-                                        x = df['positive'],
+                                        y = keywordDF['word'],
+                                        x = keywordDF['positive'],
                                         name = 'Positive',
                                         orientation = 'h',
                                         marker = dict(color  = green)
                                     )
                                 ],
                                 'layout':{
-                                    'xaxis': {'title': {'text': 'Times seen in past 15 minutes'}},
+                                    'xaxis': {'title': {'text': 'Times seen in past 30 minutes'}},
                                     'yaxis': {'title': {'text': 'Keyword'}},
                                     
                                     'height': 343,

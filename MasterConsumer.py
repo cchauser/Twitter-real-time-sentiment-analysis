@@ -13,6 +13,7 @@ import sys
 import itertools
 import multiprocessing as mp
 import MySQLdb as mysql
+import numpy as np
 
 import pickle
 from keras.models import load_model
@@ -88,6 +89,7 @@ class masterConsumer(object):
         
         pollTimeSeconds = 180 # let it buffer 1 minute for every topic
         textBuffer = {}
+        locationBuffer = {}
         searchTerms = {}
         userBuffer = {}
         prevSentiment = {}
@@ -101,6 +103,8 @@ class masterConsumer(object):
                             userBuffer[message.value['topic'][1]].append([message.value, prevSentiment[message.value['topic'][1]], 0, 0, 0])
                         else:
                             userBuffer[message.value['topic'][1]] = [[message.value, prevSentiment[message.value['topic'][1]], 0, 0, 0]]
+                        
+                        #Insert the tweet into a table
                         userPacket = {'time': message.value['time'], 'user': message.value['user'], 
                                       'tweet': message.value['tweet'], 'deltasentiment': 0, 'deltaactivity': 0}
                         self.sqlInsert(message.value['topic'][1], 'user', userPacket)
@@ -113,9 +117,12 @@ class masterConsumer(object):
                     #check if topic of stream is in the textbuffer already
                     if message.value['topic'][0] in textBuffer:
                         textBuffer[message.value['topic'][0]].append(text)
+                        locationBuffer[message.value['topic'][0]].append(message.value['location'])
                     else:
-                        self.createTables(message.value['topic'][0])
+                        self.createTables(message.value['topic'][0]) #First time seeing a topic create the table!
+                        
                         textBuffer[message.value['topic'][0]] = [text]
+                        locationBuffer[message.value['topic'][0]] = [message.value['location']]
                     searchTerms[message.value['topic'][0]] = message.value['terms'] + ['amp']
 
               
@@ -123,9 +130,7 @@ class masterConsumer(object):
     
             #Evaluate the buffer according to the pollTimeSeconds variable
             if currTime - previousPollTime >= pollTimeSeconds:
-                ### SENTIMENT
                 print('Consumption rate: ', self.consumer.metrics()['consumer-fetch-manager-metrics']['records-consumed-rate'])
-                print('Max lag: ', self.consumer.metrics()['consumer-fetch-manager-metrics']['records-lag-max'])
                 
                 # processList is a container where we'll put all of the new processes that we spawn so we can keep track of them
                 processList = []
@@ -136,6 +141,7 @@ class masterConsumer(object):
                     #TODO: Add a process checker to make sure none of the processes are hanging
                     
                     
+                    ### SENTIMENT
                     #Pads and tokenizes tweets for input into the model. Padding value is 0 by default
                     #Output should look like: [[0,0,0,0,...0,32,43,5,432],...[0,0,...0,4234,554,43]]
                     #Use pre-padding because LSTMs are somewhat biased to the end of an input.
@@ -193,11 +199,37 @@ class masterConsumer(object):
                         i += 1
 
                     #Spawn a new process to insert all of the keywords into the SQL table then add it to process array
-                    kwProcess = mp.Process(target = self.keywordInsertProcess, args = [currTime, topic, keywordPacket])
+                    kwProcess = mp.Process(target = self.multipleInsertProcessFunction, args = [topic, 'keyword', keywordPacket])
                     kwProcess.start()
                     processList.append(kwProcess)
+                    
+                    locationIndex = {}
+                    for i in range(len(locationBuffer[topic])):
+                        location = locationBuffer[topic][i]
+                        if location == None:
+                            continue
+                        sentiment = p[i]
+                        if location in locationIndex:
+                            locationIndex[location].append(sentiment)
+                        else:
+                            locationIndex[location] = [sentiment]
+                    
+                    locationPacket = []
+                    for location, array in locationIndex.items():
+                        times_seen = len(array)
+                        sentiment = np.mean(array)
+                        locationPacket.append({'time': currTime,
+                                               'location': location,
+                                               'sentiment': sentiment,
+                                               'times_seen': times_seen})
+                    
+                    #Spawn a new process to insert all of the keywords into the SQL table then add it to process array
+                    locProcess = mp.Process(target = self.multipleInsertProcessFunction, args = [topic, 'location', locationPacket])
+                    locProcess.start()
+                    processList.append(locProcess)
 
                     textBuffer[topic].clear()
+                    locationBuffer[topic].clear()
                     
                 self.calculateSentimentChange(prevSentiment, userBuffer)
                 
@@ -212,10 +244,10 @@ class masterConsumer(object):
 
                 previousPollTime = currTime
 
-    def keywordInsertProcess(self, currTime, topic, keywordPacket):
-        for item in keywordPacket:
+    def multipleInsertProcessFunction(self, topic, dbType, packet):
+        for item in packet:
             try:
-                self.sqlInsert(topic, 'keyword', item)
+                self.sqlInsert(topic, dbType, item)
             except:
                 continue
         
@@ -280,6 +312,7 @@ class masterConsumer(object):
         sentTableName = '{}_sentiment'.format(topic)
         userTableName = '{}_user'.format(topic)
         keywordTableName = '{}_keyword'.format(topic)
+        locationTableName = '{}_location'.format(topic)
         
         TABLES = {}
         TABLES[sentTableName] = (
@@ -320,6 +353,19 @@ class masterConsumer(object):
                 neutral int(11) NOT NULL,
                 PRIMARY KEY (word_index) ) 
                 ENGINE = InnoDB'''.format(keywordTableName)
+                )
+        
+        TABLES[locationTableName] = (
+                '''
+                CREATE TABLE {} (
+                location_index int(11) NOT NULL AUTO_INCREMENT,
+                time int(11) NOT NULL,
+                location varchar(5) NOT NULL,
+                sentiment float(3,3) NOT NULL,
+                times_seen int(11) NOT NULL,
+                PRIMARY KEY (location_index) )
+                ENGINE = InnoDB
+                '''.format(locationTableName)
                 )
 
         #TODO: Touch table to update the LAST_UPDATE field. Allows frontendDash to start without error
