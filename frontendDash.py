@@ -52,7 +52,8 @@ def tableColors(n):
     #the colors so that all of the entries retain the same colors and the newest gets the next color
     tableColor = tableColor[:n][::-1]
     return [tableColor * 5]
-    
+
+#TODO: Move all sql interaction functions into a new class    
 def getRecentTopics():
     cnx = mysql.connect(user = mysqlUser, 
                          password = mysqlPass, 
@@ -166,34 +167,38 @@ def sqlUserSelect(topic):
                   '''.format(topic, dayAgoSeconds)
     
     cursor.execute(selectQuery)
-    #TODO: Better way to do this
-    timeArray = []
-    userArray = []
-    tweetArray = []
-    dSentArray = []
-    dActArray = []
-    for item in cursor:
-        t = datetime.fromtimestamp(item[0]).strftime('%Y-%m-%d %H:%M:%S')
-        timeArray.append(t)
-        userArray.append(item[1])
-        tweetArray.append(item[2])
-        dSentArray.append(item[3])
-        dActArray.append(item[4])
-    
     cnx.close()
-    return timeArray, userArray, tweetArray, dSentArray, dActArray
+    container = []
+    annotations = []
+    shapes = []
+    for item in cursor:
+        item = list(item)
+        item[0] = datetime.fromtimestamp(item[0]).strftime('%Y-%m-%d %H:%M:%S')
+        container.append(item)
+        shapes.append({'x0':item[0], 'x1':item[0], 'y0':0, 'y1': 1, 'xref':'x', 'yref':'paper', 
+                       'opacity': .35, 'line':{'width':.5}})
+    
+        # Hacker mode: engaged
+        # Because shapes don't have hovertext and we want to only be able to see the text when the shape is hovered
+        # we create an annotation the text set to spaces to run the length of the shape and have the hovertext 
+        # set to the text that we want to display. :sunglasses:
+        annotations.append({'x':item[0], 'y':0, 'xref':'x', 'height': 1, 'yref':'paper', 'showarrow':False, 
+                            'xanchor':'center', 'text': ' ' * 200, 'hovertext':'{} tweet'.format(item[1]),
+                            'font': {'size':7}, 'textangle': 270})
+    
+    df = pd.DataFrame(container, columns = ['time', 'user', 'text', 'dSent', 'dAct'])
+    return df, annotations, shapes
 
 @dApp.callback([Output('live-graph', 'children'),
                Output('since-update', 'children')],
               [Input('interval-component', 'n_intervals'),
                Input('dropdown_selector', 'value')])
 def update_graph_live(n, ddValue):
-    timeArray = []
     try:
-        if ddValue != None:
+        if ddValue is not None:
             timeSeries, sentiments = sqlSentimentSelect(ddValue)
             keywordDF = sqlKeywordSelect(ddValue)
-            timeArray, userArray, tweetArray, dSentArray, dActArray = sqlUserSelect(ddValue)
+            userDF, annotations, shapes = sqlUserSelect(ddValue)
             locationDF = sqlLocationSelect(ddValue)
         else:
             timeSeries = []
@@ -206,8 +211,8 @@ def update_graph_live(n, ddValue):
         blue = '#176BEF'
         green = '#17AF51'
         mapColorScale = [[0, red], [0.5, blue], [1.0, green]]
-        if len(timeArray) > 1:
-            tableColor = tableColors(len(timeArray))
+        if len(annotations) > 1:
+            tableColor = tableColors(len(annotations))
         else:
             tableColor = ['lightcyan']
             
@@ -262,9 +267,13 @@ def update_graph_live(n, ddValue):
                                                                                  'label': '8h',
                                                                                  'step': 'hour',
                                                                                  'stepmode': 'backward'},
-                                                                                {'step': 'all',
-                                                                                 'label': '12h'}]}},
+                                                                                {'count': 12,
+                                                                                 'step': 'hour',
+                                                                                 'label': '12h',
+                                                                                 'stepmode': 'backward'}]}},
                                         'yaxis': {'title': {'text': 'Number of Mentions'}},
+                                        'shapes': shapes,
+                                        'annotations': annotations,
                                         'margin':{'b': 40, 't': 30, 'r':20}
                                         }
                             }
@@ -344,7 +353,7 @@ def update_graph_live(n, ddValue):
                                                       fill_color = blue,
                                                       font_color = '#FFFFFF',
                                                       font_size = 17),
-                                        cells = dict(values = [timeArray, userArray, tweetArray, dSentArray, dActArray],
+                                        cells = dict(values = [userDF['time'], userDF['user'], userDF['text'], userDF['dSent'], userDF['dAct']],
                                                      fill_color = tableColor,
                                                      suffix = ['', '', '', '%', '%'],
                                                      font_size = [12, 12, 12, 14, 14],
@@ -385,7 +394,7 @@ dApp.layout = html.Div(children = [
         html.Div([html.Div(children = 'Topic:')], style={'width': '5%', 'display': 'inline-block', 'padding': '0 0 0 20', 'margin-right': -40, 'vertical-align': 13}),
         html.Div([html.Div(id = 'dropdown', children = dropdown)], style={'width': '15%', 'display': 'inline-block', 'padding': '0 0 0 20', 'margin-right': 150}),
         html.Div([html.Div(id = 'since-update')], style = {'width': '30%', 'display': 'inline-block'}),
-        html.Div(id = 'live-graph', children = html.H1('Fetching graphs. This may take a few seconds!')),
+        html.Div(id = 'live-graph', children = html.H2('Fetching graphs. This may take a few seconds!')),
         
         
         dcc.Interval(id = 'interval-component',
