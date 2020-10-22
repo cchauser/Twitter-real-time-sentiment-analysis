@@ -182,9 +182,17 @@ def sqlUserSelect(topic):
         # Because shapes don't have hovertext and we want to only be able to see the text when the shape is hovered
         # we create an annotation the text set to spaces to run the length of the shape and have the hovertext 
         # set to the text that we want to display. :sunglasses:
+        text = ''
+        tweet = item[2].split()
+        for i in range(len(tweet)):
+            if i % 6 == 5:
+                text += '<br>' + tweet[i]
+            else:
+                text += ' ' + tweet[i]
+        text = text.strip()
         annotations.append({'x':item[0], 'y':0, 'xref':'x', 'height': 1, 'yref':'paper', 'showarrow':False, 
-                            'xanchor':'center', 'text': ' ' * 200, 'hovertext':'{} tweet'.format(item[1]),
-                            'font': {'size':7}, 'textangle': 270})
+                            'xanchor':'center', 'text': ' ' * 200, 'font': {'size':7}, 'textangle': 270,
+                            'hovertext':'{} tweet<br>{}<br><br>Change in sentiment: {}%<br>Change in activity: {}%'.format(item[1], text, item[3], item[4])})
     
     df = pd.DataFrame(container, columns = ['time', 'user', 'text', 'dSent', 'dAct'])
     return df, annotations, shapes
