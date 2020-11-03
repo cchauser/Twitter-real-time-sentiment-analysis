@@ -22,7 +22,6 @@ from tensorflow.python.keras.preprocessing.sequence import pad_sequences
 from kafka import KafkaConsumer
 from nltk import word_tokenize, FreqDist
 from nltk.stem import WordNetLemmatizer, SnowballStemmer
-from nltk.stem.porter import *
 
 nltk.download('wordnet')
 
@@ -133,10 +132,6 @@ class masterConsumer(object):
 
               
             currTime = int(time.time()) #Use int for database indexing purposes
-            #Get rid of empty topics before analyzing
-            for topic in textBuffer:
-                if len(textBuffer[topic]) == 0:
-                    textBuffer.pop(topic, None)
             #Evaluate the buffer according to the pollTimeSeconds variable
             if currTime - previousPollTime >= pollTimeSeconds:
                 print('Consumption rate: ', self.consumer.metrics()['consumer-fetch-manager-metrics']['records-consumed-rate'])
@@ -144,6 +139,8 @@ class masterConsumer(object):
                 # processList is a container where we'll put all of the new processes that we spawn so we can keep track of them
                 processList = []
                 for topic in textBuffer:
+                    if len(textBuffer[topic]) == 0:
+                        textBuffer.pop(topic, None)
 
                     ### SENTIMENT
                     #Pads and tokenizes tweets for input into the model. Padding value is 0 by default
